@@ -1,0 +1,12 @@
+# Regenerate with: dart run flutter_native_splash:create
+flutter_native_splash:
+  color: "#161616"
+  image: assets/branding/splash_logo.png
+  android_12:
+    color: "#161616"
+    image: assets/branding/splash_android12.png
+    icon_background_color: "#161616"
+  android: true
+  ios: true
+  web: false
+  fullscreen: false

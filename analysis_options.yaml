@@ -1,0 +1,29 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - lib/**/*.g.dart
+    - android/**
+    - ios/**
+  errors:
+    # Spec-driven app, not a published package.
+    public_member_api_docs: ignore
+    lines_longer_than_80_chars: ignore
+
+linter:
+  rules:
+    sort_pub_dependencies: false
+    avoid_positional_boolean_parameters: false
+    flutter_style_todos: false
+    # Style-only rules that fight the codebase's idiom (see DECISIONS.md).
+    unnecessary_type_name_in_constructor: false
+    avoid_equals_and_hash_code_on_mutable_classes: false
+    prefer_constructors_over_static_methods: false
+    sort_constructors_first: false
+    avoid_multiple_declarations_per_line: false
+    use_setters_to_change_properties: false
+    specify_nonobvious_property_types: false
+    # Fire on nearly every Flutter callback; unawaited_futures stays on.
+    discarded_futures: false
+    async_return_with_no_await: false

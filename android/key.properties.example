@@ -1,0 +1,6 @@
+# Copy to key.properties (never commit it) and fill in.
+# Create a key:  keytool -genkey -v -keystore ~/poora-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=C:/path/to/poora-upload.jks
