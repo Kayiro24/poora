@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="290 180 538 680" role="img" aria-label="Poora">
+  <!-- Same geometry as tool/render_logo.py (1024 grid). -->
+  <circle cx="566" cy="420" r="176" fill="none" stroke="#C9D9CF" stroke-width="104"/>
+  <path d="M505.8 585.4 A176 176 0 0 1 390 420" fill="none" stroke="#BFEAF2" stroke-width="104" stroke-linecap="round"/>
+  <rect x="300" y="190" width="120" height="660" rx="60" fill="#F2705E"/>
+</svg>

@@ -1,0 +1,14 @@
+{
+  "name": "poora-monorepo",
+  "private": true,
+  "description": "Poora — make every day whole. Mobile app (Flutter, apps/mobile) and web app (React, apps/web).",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "web:dev": "npm run dev -w apps/web",
+    "web:build": "npm run build -w apps/web",
+    "web:test": "npm run test -w apps/web",
+    "web:lint": "npm run lint -w apps/web"
+  }
+}

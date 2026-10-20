@@ -1,0 +1,41 @@
+# Android/iOS app (apps/mobile): analyze + tests on every change to it.
+name: Mobile CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/mobile/**', 'shared/**', '.github/workflows/mobile-ci.yml']
+  pull_request:
+    paths: ['apps/mobile/**', 'shared/**', '.github/workflows/mobile-ci.yml']
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate database code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test

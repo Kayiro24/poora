@@ -1,0 +1,7 @@
+node_modules
+dist
+dev-dist
+*.tsbuildinfo
+# Copied from apps/mobile/assets by scripts/sync-assets.mjs
+public/assets
+dist-ssr

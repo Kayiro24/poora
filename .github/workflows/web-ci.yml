@@ -1,0 +1,37 @@
+# Website + web app (apps/web): lint, tests, prerendered production build.
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/web/**', 'shared/**', 'apps/mobile/assets/**', 'package.json', 'package-lock.json', '.github/workflows/web-ci.yml']
+  pull_request:
+    paths: ['apps/web/**', 'shared/**', 'apps/mobile/assets/**', 'package.json', 'package-lock.json', '.github/workflows/web-ci.yml']
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and type-check
+        run: npm run lint -w apps/web
+
+      - name: Test
+        run: npm run test -w apps/web
+
+      - name: Build (with prerender)
+        run: npm run build -w apps/web

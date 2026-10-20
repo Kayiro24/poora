@@ -1,89 +1,89 @@
-<p align="center"><img src="assets/branding/icon_1024.png" width="120" alt="Poora logo"></p>
+<p align="center"><img src="apps/mobile/assets/branding/icon_1024.png" width="112" alt="Poora logo: a P whose bowl is a closed completion ring"></p>
 
 # Poora
 
 **Make every day whole.** *Focus fully. Finish fully.*
 
-Poora (पूरा, "whole, complete, done") is a calm focus timer and daily planner.
-Offline-first, no account: everything stays on the phone.
+Poora (पूरा, "whole, complete, done") is a calm focus timer and daily planner: a distraction-free
+Pomodoro timer, a calendar-style task planner, and insights with a completion calendar where each
+day's ring closes as you finish. Offline-first, no account.
 
-- **Focus.** A Pomodoro timer with a distraction-free running screen. Your own reminders are held until
-  you finish, and on Android it can switch the phone to Do Not Disturb (and always puts it back).
-- **Tasks.** A day planner with Google-Calendar-style views (Day, 3 Day, Week, Month, Schedule), repeat
-  rules (including "every other day" and "3 times a week"), reminders, and Done/Snooze from the notification.
-- **Insights.** A completion calendar where each day's ring closes as you finish its tasks, plus streaks,
-  recurring-task consistency, timing and focus stats.
+| | Where | Built with |
+|---|---|---|
+| **Android app** (iOS-ready) | [`apps/mobile`](apps/mobile) | Flutter 3.47, Drift (SQLite), Riverpod |
+| **Website + web app** | [`apps/web`](apps/web) | React 19, Vite 8, TypeScript, prerendered for SEO |
+| **Shared export format** | [`shared/export-format`](shared/export-format) | JSON spec + contract sample |
 
-Android first (min SDK 24), iOS 15+. Built with Flutter 3.47 / Dart 3.13.
+Both apps have the same screens, design and behaviour. Recurrence, the focus timer and every insight
+metric are tested against the **same expected values** on both sides.
 
-## Brand
+## Moving data between phone and web
 
-| | |
-|---|---|
-| Name | Poora (`AppInfo.name` in `lib/core/app_info.dart`, the only place it lives) |
-| Tagline | Make every day whole. |
-| Subline | Focus fully. Finish fully. |
-| Mark | A **P** whose bowl is a completion ring that has just closed: coral stem (the action), sage ring (the day), ice closing stroke (the moment it's done). |
-| Colours | Charcoal `#161616`, sage `#C9D9CF`, coral `#F2705E`, ice `#BFEAF2` |
+There's no cloud: data stays on each device. To move it, use **Settings → Export data** on one side
+and **Settings → Import data** on the other — the file format is identical, in both directions. The
+contract is [`shared/export-format/sample-v1.json`](shared/export-format/sample-v1.json), which both
+test suites import and re-export unchanged.
 
-The mark is drawn in code (`PooraMark`, `lib/core/widgets/poora_logo.dart`) and rendered to PNG for the
-platforms by `tool/render_logo.py`. To change the logo:
+## Repository layout
 
-```sh
-python tool/render_logo.py assets/branding   # writes icon, adaptive layers, splash images
-dart run flutter_launcher_icons              # Android mipmaps + adaptive/themed icon, iOS AppIcon
-dart run flutter_native_splash:create        # native splash (incl. Android 12+ splash API)
+```
+apps/mobile/            Flutter app (Android + iOS)
+apps/web/               React website + web app (PWA)
+shared/export-format/   Export file spec + sample used by both test suites
+.github/workflows/      mobile-ci · mobile-release · web-ci · web-deploy
+package.json            npm workspaces root (web)
 ```
 
-### Store listing copy
-
-- **Short description (80 chars):** Calm focus timer and day planner. Make every day whole.
-- **Full description:**
-  Poora helps you focus on one thing and finish your day. Start a focus session and the screen goes
-  quiet: just the timer and a slow ring. Your reminders wait until you're done. Plan tasks with
-  calendar-style repeats, tick them off, and watch each day's ring close. Everything stays on your
-  phone. No account, no ads, no cloud.
-- **Play icon:** `assets/branding/play_store_512.png`
-
-## Develop
+## Quick start
 
 ```sh
+# Web (Node 22.22+)
+npm install
+npm run web:dev            # http://localhost:5173
+npm run web:test
+npm run web:build          # prerendered site in apps/web/dist
+
+# Mobile (Flutter 3.47)
+cd apps/mobile
 flutter pub get
-dart run build_runner build      # Drift database code (lib/core/db/database.g.dart)
+dart run build_runner build
 flutter run
-flutter analyze                  # must be clean
-flutter test                     # timer engine, occurrence generator, metrics, data reset
 ```
 
-A component gallery is available in debug builds: Settings → About → Component gallery.
+## How the repo is run
 
-## Install (Android)
+| What | Runs on | Triggered by |
+|---|---|---|
+| Mobile checks (`mobile-ci.yml`) | GitHub Actions | push/PR touching `apps/mobile` or `shared` |
+| Android release (`mobile-release.yml`) | GitHub Actions → GitHub Releases | pushing a tag `v1.2.3` |
+| Web checks (`web-ci.yml`) | GitHub Actions | push/PR touching `apps/web`, `shared` or `apps/mobile/assets` |
+| Website + web app | **Vercel** | every push (production on `main`, previews on PRs) |
 
-Download the latest APK from [Releases](../../releases): `poora-<version>-universal.apk` works on every phone.
-Open it on your phone and allow "Install unknown apps" when asked. Android 7.0+.
+**Android → GitHub Releases.** `git tag v1.0.1 && git push origin v1.0.1`. Needs four repository
+secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD` (see [apps/mobile/README.md](apps/mobile/README.md)).
 
-## Releasing (GitHub)
+**Web → Vercel** (one-time setup):
+1. vercel.com → *Add New → Project* → import this GitHub repo.
+2. **Root Directory: `apps/web`**. Leave "Include files outside the root directory" **on**: the build
+   reads shared fonts and logos from `apps/mobile/assets`.
+3. Framework, install and build commands come from [`apps/web/vercel.json`](apps/web/vercel.json); don't override them.
+4. Optional *Environment Variables* (Production):
 
-Releases are built and signed by GitHub Actions (`.github/workflows/release.yml`) when a version tag is pushed:
+   | Variable | Turns on |
+   |---|---|
+   | `VITE_SITE_URL` | Your custom domain, e.g. `https://poora.app` (default: the project's `*.vercel.app` domain) |
+   | `VITE_GA_MEASUREMENT_ID` | Google Analytics 4 (consent banner first; nothing loads until "Allow") |
+   | `VITE_GSC_VERIFICATION` | Google Search Console "HTML tag" verification |
+   | `VITE_CONTACT_ENDPOINT` | Contact form posts to your Formspree form; without it, it opens a pre-filled GitHub issue |
 
-```sh
-git tag v1.0.0
-git push origin v1.0.0
-```
+5. Deploy. Commits that only touch the mobile app skip the web build (`ignoreCommand`).
 
-The workflow analyzes, tests, builds a universal APK plus per-ABI APKs, refuses to publish anything
-debug-signed, and attaches the APKs and `SHA256SUMS.txt` to a GitHub Release. Tags with a hyphen
-(`v1.1.0-beta.1`) become pre-releases. The version shown in the app comes from the tag.
+**Protect `main`** (Settings → Rules → New ruleset → target `main`): require a pull request and
+these status checks: `Mobile CI / check`, `Web CI / check`, and the Vercel deployment.
 
-It needs four repository secrets (Settings → Secrets and variables → Actions): `ANDROID_KEYSTORE_BASE64`,
-`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. **Every release must be signed
-with the same keystore**, or phones refuse to install the update; back it up somewhere safe.
+See [apps/web/README.md](apps/web/README.md) for the SEO setup.
 
-`android/key.properties` (see `key.properties.example`) lets you build a signed release locally;
-it and any `*.jks` are git-ignored.
+## Licence
 
-## Project layout
-
-Feature-first: `lib/core` (theme, widgets, DB, notifications, time), `lib/features/{home,focus,tasks,insights,settings,onboarding}`.
-Domain logic (timer engine, occurrence generator, metrics) is pure Dart and unit-tested.
-Design and behaviour decisions are recorded in [DECISIONS.md](DECISIONS.md).
+Not chosen yet — add a `LICENSE` file before inviting contributions.
