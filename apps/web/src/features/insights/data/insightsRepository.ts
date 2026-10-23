@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { useDb, type FocusSessionRow } from '../../../core/db/store';
-import { useGenerator, useSettings, useSnapshot, useToday } from '../../../core/hooks';
+import { useGenerator, useSettings, useSnapshot, useToday, useTrashed } from '../../../core/hooks';
 import { Days, Range, type DateRange, type Day } from '../../../core/time/days';
 import { isQuota, type Occurrence, type Task, type TaskSnapshot } from '../../tasks/domain/models';
 import type { OccurrenceGenerator } from '../../tasks/domain/occurrenceGenerator';
-import { Metrics, weekProgressOf, type DayCompletion, type FocusSessionRecord, type FocusStats, type Streak, type WeekProgress } from '../domain/metrics';
+import { Metrics, weekProgressOf, type DayCompletion, type FocusSessionRecord, type FocusStats, type Streak, type TaskOutcomes, type WeekProgress } from '../domain/metrics';
 
 /** Completion-calendar filter: everything, one tag, or one recurring series. */
 export interface CalendarFilter {
@@ -40,7 +40,21 @@ export const sessionFromRow = (r: FocusSessionRow): FocusSessionRecord => ({
   endedEarly: r.endedEarly,
   linkedTaskId: r.linkedTaskId,
   linkedOccurrenceDate: r.linkedOccurrenceDate,
+  pausedMs: r.pausedMs ?? 0,
+  awayMs: r.awayMs ?? 0,
+  interruptions: r.interruptions ?? 0,
+  distractions: parseDistractions(r.distractions),
 });
+
+function parseDistractions(json: string | null | undefined): Record<string, number> {
+  if (!json) return {};
+  try {
+    const m = JSON.parse(json) as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(m).filter((e): e is [string, number] => typeof e[1] === 'number'));
+  } catch {
+    return {};
+  }
+}
 
 /** Pure computation over a snapshot; caches live as long as the instance. */
 export class InsightsRepository {
@@ -54,6 +68,7 @@ export class InsightsRepository {
     readonly generator: OccurrenceGenerator,
     readonly today: Day,
     readonly mondayFirst: boolean,
+    readonly trashed: Task[] = [],
   ) {
     let first: Day | null = null;
     for (const t of snapshot.tasks) {
@@ -195,6 +210,7 @@ export class InsightsRepository {
   }
 
   sessionsIn = (r: DateRange) => this.sessions.filter((s) => Range.contains(r, Days.of(new Date(s.startedAt))));
+  outcomes = (r: DateRange): TaskOutcomes => Metrics.outcomes(r, this.occurrences(r), this.snapshot.records, this.trashed);
   focus = (r: DateRange): FocusStats => Metrics.focus(this.sessionsIn(r));
   focusMinutesOn = (d: Day) => this.focus(Range.day(d)).totalMinutes;
   taskTitle = (taskId: string) => this.snapshot.tasks.find((t) => t.id === taskId)?.title ?? 'Deleted task';
@@ -207,8 +223,9 @@ export function useInsights(): InsightsRepository {
   const gen = useGenerator();
   const today = useToday();
   const mondayFirst = useSettings().mondayFirst;
+  const trashed = useTrashed();
   return useMemo(() => {
     const sessions = rows.filter((r) => r.endedAt != null).map(sessionFromRow);
-    return new InsightsRepository(snapshot, sessions, gen, today, mondayFirst);
-  }, [snapshot, rows, gen, today, mondayFirst]);
+    return new InsightsRepository(snapshot, sessions, gen, today, mondayFirst, trashed);
+  }, [snapshot, rows, gen, today, mondayFirst, trashed]);
 }

@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:ui' show Color, DartPluginRegistrant;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Priority;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart' as fln show Priority;
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:poora/core/db/daos/tasks_dao.dart';
 import 'package:poora/core/db/database.dart';
@@ -22,7 +24,9 @@ abstract final class NotificationIds {
 }
 
 abstract final class Channels {
-  static const reminders = 'task_reminders';
+  /// v2 carries Poora's reminder tone (a channel's sound is fixed once created).
+  static const reminders = 'task_reminders_v2';
+  static const legacyReminders = 'task_reminders';
   static const focusEnd = 'focus_end';
 }
 
@@ -91,18 +95,24 @@ int reminderId(String taskId, DateTime date, String reminderKey) {
   return id < 100 ? id + 100 : id;
 }
 
+/// Poora's reminder tone (res/raw/reminder_tone.wav).
+const _reminderSound = RawResourceAndroidNotificationSound('reminder_tone');
+
 NotificationDetails _reminderDetails() => const NotificationDetails(
   android: AndroidNotificationDetails(
     Channels.reminders,
     'Task reminders',
     channelDescription: 'Reminders for scheduled tasks',
-    color: Color(0xFFF2705E),
+    importance: Importance.high,
+    priority: fln.Priority.high,
+    sound: _reminderSound,
+    color: Color(0xFFEF7867),
     actions: [
       AndroidNotificationAction(_actionDone, 'Done'),
       AndroidNotificationAction(_actionSnooze, 'Snooze 10 min'),
     ],
   ),
-  iOS: DarwinNotificationDetails(categoryIdentifier: _categoryReminder),
+  iOS: DarwinNotificationDetails(categoryIdentifier: _categoryReminder, presentSound: true, sound: 'reminder_tone.wav'),
 );
 
 NotificationDetails _summaryDetails() => const NotificationDetails(
@@ -110,9 +120,12 @@ NotificationDetails _summaryDetails() => const NotificationDetails(
     Channels.reminders,
     'Task reminders',
     channelDescription: 'Reminders for scheduled tasks',
-    color: Color(0xFFF2705E),
+    importance: Importance.high,
+    priority: fln.Priority.high,
+    sound: _reminderSound,
+    color: Color(0xFFEF7867),
   ),
-  iOS: DarwinNotificationDetails(),
+  iOS: DarwinNotificationDetails(presentSound: true, sound: 'reminder_tone.wav'),
 );
 
 NotificationDetails _focusDetails() => const NotificationDetails(
@@ -121,7 +134,7 @@ NotificationDetails _focusDetails() => const NotificationDetails(
     'Focus complete',
     channelDescription: 'Fires once when a focus phase ends',
     importance: Importance.high,
-    color: Color(0xFF8FAF9C),
+    color: Color(0xFF86AD9E),
     sound: RawResourceAndroidNotificationSound('focus_chime'),
   ),
   iOS: DarwinNotificationDetails(),
@@ -175,11 +188,14 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onResponse,
       onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
     );
+    await _android?.deleteNotificationChannel(channelId: Channels.legacyReminders);
     await _android?.createNotificationChannel(
       const AndroidNotificationChannel(
         Channels.reminders,
         'Task reminders',
         description: 'Reminders for scheduled tasks',
+        importance: Importance.high,
+        sound: _reminderSound,
       ),
     );
     await _android?.createNotificationChannel(
@@ -234,6 +250,16 @@ class NotificationService {
     }
     return await _ios?.requestPermissions(alert: true, sound: true, badge: true) ??
         false;
+  }
+
+  /// Opens the system notification settings for Poora (fallback after a denial).
+  Future<void> openSystemSettings() async {
+    if (!_supported || !Platform.isAndroid) return;
+    try {
+      await const MethodChannel('poora/system').invokeMethod<void>('openNotificationSettings');
+    } on PlatformException {
+      // Nothing to open; the on-screen text explains the path.
+    }
   }
 
   /// Android 12+: exact alarms. Always true elsewhere.

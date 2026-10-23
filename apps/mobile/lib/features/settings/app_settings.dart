@@ -33,6 +33,10 @@ class AppSettings {
     this.lastFocusAt,
     this.iosFocusTipShown = false,
     this.onboarded = false,
+    this.distractingApps = const [],
+    this.strictMode = false,
+    this.dailyFocusGoalMin = 120,
+    this.blockedApps = const [],
   });
 
   final String name;
@@ -61,6 +65,19 @@ class AppSettings {
   /// First-run welcome completed.
   final bool onboarded;
 
+  /// Android packages counted as distracting during focus (usage access).
+  final List<String> distractingApps;
+
+  /// Strict mode: a running focus phase can't be paused, skipped or ended,
+  /// and (Android, with the focus guard on) Poora can't be uninstalled.
+  final bool strictMode;
+
+  /// "You versus you": the day's focus target, in minutes.
+  final int dailyFocusGoalMin;
+
+  /// Android packages that can't be opened during focus (focus guard).
+  final List<String> blockedApps;
+
   AppSettings copyWith({
     String? name,
     bool? mondayFirst,
@@ -79,6 +96,10 @@ class AppSettings {
     DateTime? lastFocusAt,
     bool? iosFocusTipShown,
     bool? onboarded,
+    List<String>? distractingApps,
+    bool? strictMode,
+    int? dailyFocusGoalMin,
+    List<String>? blockedApps,
   }) => AppSettings(
     name: name ?? this.name,
     mondayFirst: mondayFirst ?? this.mondayFirst,
@@ -99,6 +120,10 @@ class AppSettings {
     lastFocusAt: lastFocusAt ?? this.lastFocusAt,
     iosFocusTipShown: iosFocusTipShown ?? this.iosFocusTipShown,
     onboarded: onboarded ?? this.onboarded,
+    distractingApps: distractingApps ?? this.distractingApps,
+    strictMode: strictMode ?? this.strictMode,
+    dailyFocusGoalMin: dailyFocusGoalMin ?? this.dailyFocusGoalMin,
+    blockedApps: blockedApps ?? this.blockedApps,
   );
 
   Map<String, String> toMap() => {
@@ -119,6 +144,10 @@ class AppSettings {
     'lastFocusAt': '${lastFocusAt?.millisecondsSinceEpoch ?? ''}',
     'iosFocusTipShown': '$iosFocusTipShown',
     'onboarded': '$onboarded',
+    'distractingApps': distractingApps.join(','),
+    'strictMode': '$strictMode',
+    'dailyFocusGoalMin': '$dailyFocusGoalMin',
+    'blockedApps': blockedApps.join(','),
   };
 
   factory AppSettings.fromMap(Map<String, String> m) {
@@ -154,6 +183,10 @@ class AppSettings {
       lastFocusAt: lastAt == null ? null : DateTime.fromMillisecondsSinceEpoch(lastAt),
       iosFocusTipShown: b('iosFocusTipShown', d.iosFocusTipShown),
       onboarded: b('onboarded', d.onboarded),
+      distractingApps: (m['distractingApps'] ?? '').split(',').where((p) => p.isNotEmpty).toList(),
+      strictMode: b('strictMode', d.strictMode),
+      dailyFocusGoalMin: int.tryParse(m['dailyFocusGoalMin'] ?? '') ?? d.dailyFocusGoalMin,
+      blockedApps: (m['blockedApps'] ?? '').split(',').where((p) => p.isNotEmpty).toList(),
     );
   }
 }

@@ -9,8 +9,11 @@ Offline-first, no account: everything stays on the phone.
 
 - **Focus.** A Pomodoro timer with a distraction-free running screen. Your own reminders are held until
   you finish, and on Android it can switch the phone to Do Not Disturb (and always puts it back).
+  Regain-style tracking counts interruptions and time away, and — with Usage access — minutes in
+  apps you mark as distracting. Focus straight from a task (15 / 25 / 45 / 60 min); history by task.
 - **Tasks.** A day planner with Google-Calendar-style views (Day, 3 Day, Week, Month, Schedule), repeat
   rules (including "every other day" and "3 times a week"), reminders, and Done/Snooze from the notification.
+  Completed / Not completed / Delete work like Google Calendar, with Undo and a 30-day Trash.
 - **Insights.** A completion calendar where each day's ring closes as you finish its tasks, plus streaks,
   recurring-task consistency, timing and focus stats.
 
@@ -24,7 +27,7 @@ Android first (min SDK 24), iOS 15+. Built with Flutter 3.47 / Dart 3.13.
 | Tagline | Make every day whole. |
 | Subline | Focus fully. Finish fully. |
 | Mark | A **P** whose bowl is a completion ring that has just closed: coral stem (the action), sage ring (the day), ice closing stroke (the moment it's done). |
-| Colours | Charcoal `#161616`, sage `#C9D9CF`, coral `#F2705E`, ice `#BFEAF2` |
+| Colours | Charcoal `#151517`, sage `#C6DAD2`, coral `#EF7867`, ice `#C3E7EF` |
 
 The mark is drawn in code (`PooraMark`, `lib/core/widgets/poora_logo.dart`) and rendered to PNG for the
 platforms by `tool/render_logo.py`. To change the logo:

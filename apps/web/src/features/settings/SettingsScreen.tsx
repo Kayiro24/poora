@@ -101,7 +101,7 @@ export function SettingsScreen() {
             subtitle={
               perm === 'unsupported' ? 'Not supported in this browser'
                 : perm === 'granted' ? 'Allowed — reminders appear while Poora is open in a tab or installed'
-                  : perm === 'denied' ? 'Blocked — allow them in your browser’s site settings'
+                  : perm === 'denied' ? 'Blocked — click the lock/site icon next to the address bar → Notifications → Allow'
                     : 'Off — reminders won’t appear'
             }
             trailing={
@@ -111,6 +111,11 @@ export function SettingsScreen() {
             }
           />
           <SRow title="Focus settings" subtitle="Timer display, quiet mode, chime" onClick={() => navigate('/focus/settings')} trailing={<Icon name="chevronRight" className="icon muted" />} />
+          <SRow title="Focus history" subtitle="Daily and weekly focus, grouped by task" onClick={() => navigate('/focus/history')} trailing={<Icon name="chevronRight" className="icon muted" />} />
+          <SRow
+            title="Distracting apps"
+            subtitle="Android app only (needs Usage access). In the browser, Poora counts the times you leave the tab during focus."
+          />
         </Group>
 
         <Group title="Data">
@@ -138,6 +143,7 @@ export function SettingsScreen() {
               e.target.value = '';
             }}
           />
+          <SRow title="Trash" subtitle="Deleted tasks, kept for 30 days" onClick={() => navigate('/trash')} trailing={<Icon name="chevronRight" className="icon muted" />} />
         </Group>
 
         <Group title="Danger zone">
@@ -148,7 +154,7 @@ export function SettingsScreen() {
           <div style={{ padding: '20px 16px 4px' }}>
             <Wordmark size={30} tagline />
           </div>
-          <SRow title={`Version ${AppInfo.version}`} subtitle={`${AppInfo.meaning}\n${AppInfo.subline} Offline, no account — your data stays in this browser.`} />
+          <SRow title={`Version ${AppInfo.version}`} subtitle={`${AppInfo.meaning}\n${AppInfo.subline} ${AppInfo.motto} Offline, no account — your data stays in this browser.`} />
           <a className="srow" href={AppInfo.androidUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
             <span className="t"><span className="title">Get the Android app</span><span className="body-s" style={{ display: 'block' }}>Free on GitHub Releases</span></span>
             <Icon name="android" className="icon" />

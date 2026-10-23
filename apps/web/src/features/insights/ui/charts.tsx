@@ -169,7 +169,7 @@ export function SegmentedBar({ segments }: { segments: OccurrenceStatus[] }) {
           key={i}
           style={{
             flex: 1, height: 8, borderRadius: 4,
-            background: s === 'done' ? T.mint : s === 'missed' ? T.coral : s === 'skipped' ? 'rgba(163,160,154,0.4)' : 'transparent',
+            background: s === 'done' ? T.mint : s === 'missed' ? T.coral : s === 'skipped' ? 'rgba(164, 161, 156,0.4)' : 'transparent',
             border: s === 'pending' ? `1px solid ${T.outline}` : undefined,
           }}
         />

@@ -5,14 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:poora/core/app_info.dart';
 import 'package:poora/core/providers.dart';
 import 'package:poora/core/theme/motion.dart';
 import 'package:poora/core/theme/tokens.dart';
 import 'package:poora/core/theme/typography.dart';
 import 'package:poora/core/time/date_utils.dart';
+import 'package:poora/core/time/format.dart';
 import 'package:poora/features/focus/application/focus_controller.dart';
 import 'package:poora/features/focus/domain/timer_engine.dart';
 import 'package:poora/features/focus/domain/timer_format.dart';
+import 'package:poora/features/focus/ui/focus_breakdown.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 import 'package:poora/features/tasks/application/tasks_providers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -26,8 +29,7 @@ class FocusRunningScreen extends ConsumerStatefulWidget {
   ConsumerState<FocusRunningScreen> createState() => _RunningState();
 }
 
-class _RunningState extends ConsumerState<FocusRunningScreen>
-    with TickerProviderStateMixin {
+class _RunningState extends ConsumerState<FocusRunningScreen> with TickerProviderStateMixin {
   late final Ticker _ticker;
   late final AnimationController _breath;
   final _now = ValueNotifier<DateTime>(DateTime.now());
@@ -107,10 +109,7 @@ class _RunningState extends ConsumerState<FocusRunningScreen>
     final ctrl = ref.read(focusControllerProvider.notifier);
     final engine = ctrl.engineFor(session.config);
     final timer = session.timer;
-    final format = TimerFormat(
-      showSeconds: settings.showSeconds,
-      showSubSeconds: settings.showSubSeconds,
-    );
+    final format = TimerFormat(showSeconds: settings.showSeconds, showSubSeconds: settings.showSubSeconds);
     final accent = timer.isFocus ? Tokens.sage : Tokens.ice;
     final label = switch (timer.phase) {
       FocusPhase.focus => 'FOCUS · ${timer.focusIndex} of ${session.config.longEvery}',
@@ -128,11 +127,7 @@ class _RunningState extends ConsumerState<FocusRunningScreen>
             animation: _breath,
             builder: (context, child) => DecoratedBox(
               decoration: BoxDecoration(
-                color: Color.lerp(
-                  Tokens.bg,
-                  Color.alphaBlend(Tokens.sage.withValues(alpha: 0.04), Tokens.bg),
-                  Curves.easeInOut.transform(_breath.value),
-                ),
+                color: Color.lerp(Tokens.bg, Color.alphaBlend(Tokens.sage.withValues(alpha: 0.04), Tokens.bg), Curves.easeInOut.transform(_breath.value)),
               ),
               child: child,
             ),
@@ -143,18 +138,9 @@ class _RunningState extends ConsumerState<FocusRunningScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          label,
-                          style: AppText.display(18, color: Tokens.textPrimary.withValues(alpha: 0.4)),
-                        ),
+                        Text(label, style: AppText.display(18, color: Tokens.textPrimary.withValues(alpha: 0.4))),
                         const SizedBox(height: 28),
-                        _TimerFace(
-                          now: _now,
-                          engine: engine,
-                          timer: timer,
-                          format: format,
-                          accent: accent,
-                        ),
+                        _TimerFace(now: _now, engine: engine, timer: timer, format: format, accent: accent),
                         const SizedBox(height: 28),
                         // Waiting phases need a visible start; everything else
                         // stays hidden until tapped.
@@ -182,23 +168,25 @@ class _RunningState extends ConsumerState<FocusRunningScreen>
                         opacity: _controls ? 1 : 0,
                         duration: Motion.of(context),
                         curve: Motion.curve,
-                        child: _Controls(
-                          paused: timer.isPaused,
-                          waiting: timer.isWaiting,
-                          longPressToEnd: settings.longPressToEnd,
-                          onPauseResume: () {
-                            _reveal();
-                            timer.isPaused ? ctrl.resume() : ctrl.pause();
-                          },
-                          onSkip: () {
-                            _reveal();
-                            ctrl.skip();
-                          },
-                          onEnd: () {
-                            HapticFeedback.mediumImpact();
-                            ctrl.end();
-                          },
-                        ),
+                        child: session.locked
+                            ? _StrictNote(endsAt: engine.phaseEndsAt(timer), use24h: settings.use24h)
+                            : _Controls(
+                                paused: timer.isPaused,
+                                waiting: timer.isWaiting,
+                                longPressToEnd: settings.longPressToEnd,
+                                onPauseResume: () {
+                                  _reveal();
+                                  timer.isPaused ? ctrl.resume() : ctrl.pause();
+                                },
+                                onSkip: () {
+                                  _reveal();
+                                  ctrl.skip();
+                                },
+                                onEnd: () {
+                                  HapticFeedback.mediumImpact();
+                                  ctrl.end();
+                                },
+                              ),
                       ),
                     ),
                   ),
@@ -215,13 +203,7 @@ class _RunningState extends ConsumerState<FocusRunningScreen>
 /// Ring + digits. Repaints per frame via [now]; the text only rebuilds when
 /// the formatted string changes.
 class _TimerFace extends StatelessWidget {
-  const _TimerFace({
-    required this.now,
-    required this.engine,
-    required this.timer,
-    required this.format,
-    required this.accent,
-  });
+  const _TimerFace({required this.now, required this.engine, required this.timer, required this.format, required this.accent});
 
   final ValueNotifier<DateTime> now;
   final TimerEngine engine;
@@ -235,21 +217,13 @@ class _TimerFace extends StatelessWidget {
     return SizedBox.square(
       dimension: size,
       child: CustomPaint(
-        painter: _RingPainter(
-          now: now,
-          engine: engine,
-          timer: timer,
-          color: accent,
-        ),
+        painter: _RingPainter(now: now, engine: engine, timer: timer, color: accent),
         child: Center(
           child: Padding(
             padding: EdgeInsets.all(size * 0.12),
             child: ValueListenableBuilder<DateTime>(
               valueListenable: now,
-              builder: (context, t, _) => _Digits(
-                text: format.main(engine.remainingMs(timer, t)),
-                unit: format.unit,
-              ),
+              builder: (context, t, _) => _Digits(text: format.main(engine.remainingMs(timer, t)), unit: format.unit),
             ),
           ),
         ),
@@ -277,10 +251,7 @@ class _Digits extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(text, style: AppText.mono(104, weight: FontWeight.w400)),
-            if (unit != null) ...[
-              const SizedBox(width: 8),
-              Text(unit!, style: AppText.body(22, color: Tokens.textSecondary)),
-            ],
+            if (unit != null) ...[const SizedBox(width: 8), Text(unit!, style: AppText.body(22, color: Tokens.textSecondary))],
           ],
         ),
       ),
@@ -289,12 +260,7 @@ class _Digits extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter({
-    required this.now,
-    required this.engine,
-    required this.timer,
-    required this.color,
-  }) : super(repaint: now);
+  _RingPainter({required this.now, required this.engine, required this.timer, required this.color}) : super(repaint: now);
 
   final ValueNotifier<DateTime> now;
   final TimerEngine engine;
@@ -304,32 +270,77 @@ class _RingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
-    final r = size.shortestSide / 2 - 4;
+    final r = size.shortestSide / 2 - 8;
+    // Sixty minute dots just outside the track; every fifth a touch larger.
+    final dot = Paint()..color = Tokens.textSecondary.withValues(alpha: 0.35);
+    for (var i = 0; i < 60; i++) {
+      final a = i / 60 * 2 * math.pi - math.pi / 2;
+      canvas.drawCircle(c + Offset(math.cos(a), math.sin(a)) * (r + 6), i % 5 == 0 ? 1.6 : 0.8, dot);
+    }
     canvas.drawCircle(
       c,
-      r,
+      r - 4,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = 2
         ..color = Tokens.outline,
     );
     final p = engine.progress(timer, now.value);
     if (p <= 0) return;
+    final sweep = 2 * math.pi * p;
     canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r),
+      Rect.fromCircle(center: c, radius: r - 4),
       -math.pi / 2,
-      2 * math.pi * p,
+      sweep,
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
+        ..strokeWidth = 4
         ..strokeCap = StrokeCap.round
         ..color = color,
     );
+    // The moving head: a small bead with a soft halo.
+    final head = c + Offset(math.cos(sweep - math.pi / 2), math.sin(sweep - math.pi / 2)) * (r - 4);
+    canvas
+      ..drawCircle(head, 9, Paint()..color = color.withValues(alpha: 0.18))
+      ..drawCircle(head, 5, Paint()..color = color);
   }
 
   @override
   bool shouldRepaint(_RingPainter old) => old.timer != timer || old.color != color;
+}
+
+/// Strict mode: no pause, skip or end until the focus phase is over.
+class _StrictNote extends StatelessWidget {
+  const _StrictNote({required this.endsAt, required this.use24h});
+  final DateTime? endsAt;
+  final bool use24h;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_rounded, size: 18, color: Tokens.sage),
+            const SizedBox(width: 8),
+            Text(
+              endsAt == null ? 'STRICT FOCUS' : 'STRICT FOCUS · ENDS ${Fmt.time(endsAt!, use24h: use24h)}',
+              style: AppText.display(18, color: Tokens.sage),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'No pausing, no ending early. ${AppInfo.motto}',
+          style: AppText.body(14, color: Tokens.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
 }
 
 class _Controls extends StatelessWidget {
@@ -358,11 +369,7 @@ class _Controls extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (!waiting) ...[
-              _ControlPill(
-                label: paused ? 'RESUME' : 'PAUSE',
-                icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                onTap: onPauseResume,
-              ),
+              _ControlPill(label: paused ? 'RESUME' : 'PAUSE', icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded, onTap: onPauseResume),
               const SizedBox(width: 10),
             ],
             _ControlPill(label: 'SKIP', icon: Icons.skip_next_rounded, onTap: onSkip),
@@ -376,23 +383,14 @@ class _Controls extends StatelessWidget {
             ),
           ],
         ),
-        if (longPressToEnd) ...[
-          const SizedBox(height: 10),
-          Text('Hold END to finish early', style: AppText.bodyS),
-        ],
+        if (longPressToEnd) ...[const SizedBox(height: 10), Text('Hold END to finish early', style: AppText.bodyS)],
       ],
     );
   }
 }
 
 class _ControlPill extends StatelessWidget {
-  const _ControlPill({
-    required this.label,
-    required this.icon,
-    this.onTap,
-    this.onLongPress,
-    this.color = Tokens.textPrimary,
-  });
+  const _ControlPill({required this.label, required this.icon, this.onTap, this.onLongPress, this.color = Tokens.textPrimary});
 
   final String label;
   final IconData icon;
@@ -439,10 +437,7 @@ class _SummarySheet extends ConsumerWidget {
     final linkedDate = summary.linkedDate;
     final linked = summary.linkedTaskId == null || linkedDate == null
         ? null
-        : ref
-              .watch(occurrencesProvider(DateRange.day(linkedDate)))
-              .where((o) => o.task.id == summary.linkedTaskId && o.originalDate == linkedDate)
-              .firstOrNull;
+        : ref.watch(occurrencesProvider(DateRange.day(linkedDate))).where((o) => o.task.id == summary.linkedTaskId && o.originalDate == linkedDate).firstOrNull;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
@@ -450,25 +445,32 @@ class _SummarySheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              summary.endedEarly ? 'SESSION ENDED EARLY' : 'CYCLE COMPLETE',
-              style: AppText.h2,
-            ),
+            Text(summary.endedEarly ? 'SESSION ENDED EARLY' : 'CYCLE COMPLETE', style: AppText.h2),
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: _Stat(value: '${summary.focusMinutes}', label: 'focus minutes')),
-                Expanded(child: _Stat(value: '${summary.sessionsCompleted}', label: 'sessions completed')),
+                Expanded(
+                  child: _Stat(value: '${summary.focusMinutes}', label: 'focus minutes'),
+                ),
+                Expanded(
+                  child: _Stat(value: '${summary.sessionsCompleted}', label: 'sessions completed'),
+                ),
               ],
+            ),
+            const SizedBox(height: 16),
+            FocusBreakdown(
+              focusMs: summary.focusMinutes * 60000,
+              pausedMs: summary.pausedMs,
+              awayMs: summary.awayMs,
+              interruptions: summary.interruptions,
+              appUsageMs: summary.appUsageMs,
+              distractions: summary.distractions,
             ),
             if (linked != null) ...[
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Tokens.surfaceHigh,
-                  borderRadius: BorderRadius.circular(Radii.inner),
-                ),
+                decoration: BoxDecoration(color: Tokens.surfaceHigh, borderRadius: BorderRadius.circular(Radii.inner)),
                 child: Row(
                   children: [
                     Container(width: 4, height: 32, color: Color(linked.task.color)),
@@ -493,11 +495,7 @@ class _SummarySheet extends ConsumerWidget {
               width: double.infinity,
               height: 56,
               child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Tokens.sage,
-                  foregroundColor: Tokens.textInverse,
-                  shape: const StadiumBorder(),
-                ),
+                style: FilledButton.styleFrom(backgroundColor: Tokens.sage, foregroundColor: Tokens.textInverse, shape: const StadiumBorder()),
                 onPressed: () => Navigator.pop(context),
                 child: Text('DONE', style: AppText.display(20, color: Tokens.textInverse)),
               ),

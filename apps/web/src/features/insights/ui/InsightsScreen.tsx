@@ -8,7 +8,7 @@ import { DayRatePills } from '../../../core/widgets/DayRatePills';
 import { ArrowButton, EmptyState, IconButton, OptionSheet, Pill, ScreenHeader, SectionTitle, StatTile } from '../../../core/widgets/widgets';
 import { Rules } from '../../tasks/domain/recurrence';
 import { useInsights, type InsightsRepository, type RecurringSeries } from '../data/insightsRepository';
-import { DC, Metrics } from '../domain/metrics';
+import { DC, Metrics, Outcomes } from '../domain/metrics';
 import { CompletionMonthGrid, openDaySheet, TierLegend } from './calendar';
 import { BarsChart, CategoryDonut, ChartLegend, ConsistencyHeatmap, SegmentedBar, Sparkline, WeekAreaChart } from './charts';
 
@@ -67,6 +67,7 @@ export function InsightsScreen() {
         <div className="grid-2">
           <CalendarSection month={anchor} />
           <WeekCapacity day={anchor} />
+          <OutcomesSection range={range} />
           <Recurring />
           <Heatmap />
           <Timing range={range} />
@@ -301,6 +302,7 @@ function Timing({ range }: { range: DateRange }) {
 }
 
 function FocusSection({ range }: { range: DateRange }) {
+  const navigate = useNavigate();
   const repo = useInsights();
   const today = useToday();
   const { use24h } = useSettings();
@@ -311,7 +313,7 @@ function FocusSection({ range }: { range: DateRange }) {
   const daily = repo.focus(Range.of(start, end)).minutesByDay;
   return (
     <section>
-      <SectionTitle>Focus</SectionTitle>
+      <SectionTitle trailing={<button type="button" className="text-btn" style={{ color: T.sage }} onClick={() => navigate('/focus/history')}>History</button>}>Focus</SectionTitle>
       <div className="card">
         {stats.completed + stats.endedEarly === 0 ? (
           <EmptyState message="Start a focus session and your minutes will gather here." mood="calm" compact />
@@ -341,6 +343,43 @@ function FocusSection({ range }: { range: DateRange }) {
                   </div>
                 ))}
               </>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Completed / not completed / deleted for the period, as one stacked bar. */
+function OutcomesSection({ range }: { range: DateRange }) {
+  const navigate = useNavigate();
+  const o = useInsights().outcomes(range);
+  const deleted = Outcomes.deleted(o);
+  const parts: [string, number, string][] = [
+    ['Completed', o.completed, T.mint],
+    ['Not completed', o.notCompleted, T.coralSoft],
+    ['Deleted', deleted, T.textSecondary],
+  ];
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  return (
+    <section>
+      <SectionTitle trailing={<button type="button" className="text-btn muted" onClick={() => navigate('/trash')}>Trash</button>}>Task outcomes</SectionTitle>
+      <div className="card">
+        {Outcomes.total(o) === 0 ? (
+          <EmptyState message="Nothing due in this period yet." mood="thinking" compact />
+        ) : (
+          <>
+            <div className="outcome-bar" role="img" aria-label={`${o.completed} completed, ${o.notCompleted} not completed, ${deleted} deleted`}>
+              {parts.map(([label, n, c]) => n > 0 && <span key={label} style={{ flex: n, background: c }} />)}
+            </div>
+            <div className="row wrap" style={{ gap: 22, marginTop: 16 }}>
+              {parts.map(([label, n, c]) => <StatTile key={label} value={String(n)} label={label.toLowerCase()} color={c} labelColor={T.textSecondary} size={24} />)}
+            </div>
+            {deleted > 0 && (
+              <p className="body-s" style={{ marginTop: 12 }}>
+                {plural(o.deletedOccurrences, 'single occurrence')} removed · {plural(o.deletedTasks, 'task')} moved to Trash
+              </p>
             )}
           </>
         )}

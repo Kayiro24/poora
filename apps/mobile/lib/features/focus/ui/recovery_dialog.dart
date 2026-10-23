@@ -21,12 +21,8 @@ Future<void> showRecoveryDialog(BuildContext context, WidgetRef ref) async {
         style: AppText.bodyM,
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(c, false),
-          child: Text(recovery.canResume ? 'Close session' : 'Close'),
-        ),
-        if (recovery.canResume)
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Resume')),
+        TextButton(onPressed: () => Navigator.pop(c, false), child: Text(recovery.canResume ? 'Close session' : 'Close')),
+        if (recovery.canResume) TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Resume')),
       ],
     ),
   );

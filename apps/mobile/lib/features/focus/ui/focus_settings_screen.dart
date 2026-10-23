@@ -19,8 +19,7 @@ class FocusSettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<FocusSettingsScreen> createState() => _FocusSettingsState();
 }
 
-class _FocusSettingsState extends ConsumerState<FocusSettingsScreen>
-    with WidgetsBindingObserver {
+class _FocusSettingsState extends ConsumerState<FocusSettingsScreen> with WidgetsBindingObserver {
   bool _awaitingDndGrant = false;
 
   @override
@@ -44,15 +43,12 @@ class _FocusSettingsState extends ConsumerState<FocusSettingsScreen>
       final granted = await ref.read(dndServiceProvider).hasAccess();
       await _update((s) => s.copyWith(silencePhone: granted));
       if (!granted && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Do Not Disturb access wasn’t granted.')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Do Not Disturb access wasn’t granted.')));
       }
     }());
   }
 
-  Future<void> _update(AppSettings Function(AppSettings) f) =>
-      ref.read(settingsProvider.notifier).update(f);
+  Future<void> _update(AppSettings Function(AppSettings) f) => ref.read(settingsProvider.notifier).update(f);
 
   Future<void> _toggleSilence(bool on) async {
     if (!on) return _update((s) => s.copyWith(silencePhone: false));
@@ -165,9 +161,7 @@ class _FocusSettingsState extends ConsumerState<FocusSettingsScreen>
                       _update((x) => x.copyWith(chime: c));
                       ref.read(feedbackProvider).chime(c);
                     },
-                    trailing: s.chime == c
-                        ? const Icon(Icons.check_rounded, color: Tokens.sage)
-                        : null,
+                    trailing: s.chime == c ? const Icon(Icons.check_rounded, color: Tokens.sage) : null,
                   ),
                 SwitchRow(
                   title: 'Haptics',
@@ -206,10 +200,7 @@ class _Preview extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(format.main(_sampleMs), style: AppText.mono(48, weight: FontWeight.w400)),
-            if (unit != null) ...[
-              const SizedBox(width: 6),
-              Text(unit, style: AppText.body(16, color: Tokens.textSecondary)),
-            ],
+            if (unit != null) ...[const SizedBox(width: 6), Text(unit, style: AppText.body(16, color: Tokens.textSecondary))],
           ],
         ),
       ),

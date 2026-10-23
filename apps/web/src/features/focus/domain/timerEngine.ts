@@ -34,6 +34,8 @@ export interface TimerState {
   phaseDurationMs: number;
   pausedAt: number | null;
   pausedAccumMs: number;
+  /** Paused time across the whole session (excluding a pause still open). Older saved states lack it. */
+  pausedTotalMs?: number;
   focusMsCompleted: number;
   phasesCompleted: number;
   cycleComplete: boolean;
@@ -71,6 +73,7 @@ export class TimerEngine {
       phaseDurationMs: FocusCfg.durationMs(this.config, 'focus'),
       pausedAt: null,
       pausedAccumMs: 0,
+      pausedTotalMs: 0,
       focusMsCompleted: 0,
       phasesCompleted: 0,
       cycleComplete: false,
@@ -109,11 +112,15 @@ export class TimerEngine {
   focusMsSoFar = (s: TimerState, now: number) =>
     s.focusMsCompleted + (s.phase === 'focus' ? this.elapsedMs(s, now) : 0);
 
+  /** Total paused time so far, including a pause that is still open. */
+  pausedMsSoFar = (s: TimerState, now: number) => (s.pausedTotalMs ?? 0) + (s.pausedAt == null ? 0 : now - s.pausedAt);
+
   pause = (s: TimerState, now: number): TimerState => (TimerStates.isRunning(s) ? { ...s, pausedAt: now } : s);
 
   resume(s: TimerState, now: number): TimerState {
     if (s.pausedAt == null) return s;
-    return { ...s, pausedAt: null, pausedAccumMs: s.pausedAccumMs + (now - s.pausedAt) };
+    const paused = now - s.pausedAt;
+    return { ...s, pausedAt: null, pausedAccumMs: s.pausedAccumMs + paused, pausedTotalMs: (s.pausedTotalMs ?? 0) + paused };
   }
 
   startWaiting = (s: TimerState, now: number): TimerState =>
@@ -155,6 +162,7 @@ export class TimerEngine {
       phaseDurationMs: FocusCfg.durationMs(this.config, phase),
       pausedAt: null,
       pausedAccumMs: 0,
+      pausedTotalMs: s.pausedTotalMs ?? 0,
       focusMsCompleted: focusMs,
       phasesCompleted: phases,
       cycleComplete: false,
@@ -162,6 +170,9 @@ export class TimerEngine {
   }
 
   private next(phase: FocusPhase, index: number): [FocusPhase, number] | null {
+    // A zero-length long break means "no break": the cycle ends after focus
+    // (used by focus-from-task).
+    if (phase === 'focus' && index >= this.config.longEvery && this.config.longMin === 0) return null;
     if (phase === 'focus') return index >= this.config.longEvery ? ['longBreak', index] : ['shortBreak', index];
     if (phase === 'shortBreak') return ['focus', index + 1];
     return null;

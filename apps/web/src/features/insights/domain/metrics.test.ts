@@ -6,7 +6,9 @@ import { defaultFocus } from '../../focus/domain/timerEngine';
 import type { OccurrenceRecord, Task } from '../../tasks/domain/models';
 import { OccurrenceGenerator } from '../../tasks/domain/occurrenceGenerator';
 import { Rules, type RepeatRule } from '../../tasks/domain/recurrence';
-import { DC, Metrics } from './metrics';
+import { DC, Metrics, Outcomes } from './metrics';
+
+const noTracking = { pausedMs: 0, awayMs: 0, interruptions: 0, distractions: {} };
 
 const start = '2026-09-28';
 const end = '2026-10-25';
@@ -15,7 +17,7 @@ const created = new Date(2026, 8, 27).getTime();
 
 function mk(id: string, title: string, rule: RepeatRule, o: { at?: number; dur?: number; tag?: string; start?: string } = {}): Task {
   return Rules.applyTo(rule, {
-    id, title, notes: null, color: 0xfff2705e, tag: o.tag ?? null, priority: 0,
+    id, title, notes: null, color: 0xffef7867, tag: o.tag ?? null, priority: 0,
     allDay: o.at == null, startDate: o.start ?? start, startMinute: o.at ?? null, durationMin: o.dur ?? null,
     repeatKind: 'none', rrule: null, quotaPerWeek: null, quotaPreferredDays: [], endsOn: null,
     endsAfterCount: null, seriesId: id, timeZone: null, createdAt: created, updatedAt: created, deletedAt: null, reminders: [],
@@ -95,10 +97,24 @@ describe('metrics on the seeded dataset', () => {
     expect(Metrics.byCategory(past)).toEqual([['Mind', 25], ['Health', 19], ['Untagged', 1]]);
   });
 
+  test('outcomes: completed, not completed and deleted', () => {
+    const deleted = r('A', '2026-10-03', 'deleted');
+    const trashed = [
+      { ...tasks[0], id: 'gone', deletedAt: new Date(2026, 9, 20, 9).getTime() },
+      { ...tasks[0], id: 'old', deletedAt: new Date(2026, 8, 1).getTime() },
+    ];
+    const o = Metrics.outcomes(Range.of(start, end), occ, [...records, deleted], trashed);
+    expect(o.completed).toBe(36 + 9); // fixed + quota completions
+    expect(o.notCompleted).toBe(4);
+    expect(o.deletedOccurrences).toBe(1);
+    expect(o.deletedTasks).toBe(1); // only the one deleted inside the range
+    expect(Outcomes.total(o)).toBe(36 + 9 + 4 + 2);
+  });
+
   test('focus stats', () => {
     const f = Metrics.focus([
-      { id: 's1', startedAt: new Date(2026, 9, 19, 9).getTime(), endedAt: null, config: defaultFocus, focusMsCompleted: 100 * 60000, phasesCompleted: 8, endedEarly: false, linkedTaskId: null, linkedOccurrenceDate: null },
-      { id: 's2', startedAt: new Date(2026, 9, 20, 14).getTime(), endedAt: null, config: defaultFocus, focusMsCompleted: 12 * 60000, phasesCompleted: 1, endedEarly: true, linkedTaskId: 'A', linkedOccurrenceDate: null },
+      { id: 's1', startedAt: new Date(2026, 9, 19, 9).getTime(), endedAt: null, config: defaultFocus, focusMsCompleted: 100 * 60000, phasesCompleted: 8, endedEarly: false, linkedTaskId: null, linkedOccurrenceDate: null, ...noTracking },
+      { id: 's2', startedAt: new Date(2026, 9, 20, 14).getTime(), endedAt: null, config: defaultFocus, focusMsCompleted: 12 * 60000, phasesCompleted: 1, endedEarly: true, linkedTaskId: 'A', linkedOccurrenceDate: null, ...noTracking },
     ]);
     expect(f.minutesByDay.get('2026-10-19')).toBe(100);
     expect([f.completed, f.endedEarly, f.averageMinutes, f.bestHour, f.totalMinutes]).toEqual([1, 1, 56, 9, 112]);

@@ -13,11 +13,11 @@ FONTS = os.path.join(HERE, '../../mobile/assets/fonts')
 OUT = os.path.join(HERE, '../public/og')
 W, H, SS = 1200, 630, 2
 
-BG = (22, 22, 22)
-SURFACE = (34, 34, 34)
-TEXT = (244, 241, 234)
-TEXT2 = (163, 160, 154)
-SAGE, CORAL, PERI, ICE = (201, 217, 207), (242, 112, 94), (110, 114, 246), (191, 234, 242)
+BG = (21, 21, 23)
+SURFACE = (33, 33, 36)
+TEXT = (243, 240, 234)
+TEXT2 = (164, 161, 156)
+SAGE, CORAL, PERI, ICE = (198, 218, 210), (239, 120, 103), (118, 121, 240), (195, 231, 239)
 
 
 def font(name, size):

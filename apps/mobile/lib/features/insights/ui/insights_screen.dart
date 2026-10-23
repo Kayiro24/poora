@@ -128,6 +128,8 @@ class _InsightsScreenState extends ConsumerState<InsightsScreen> {
             const SizedBox(height: Space.xxl),
             _CalendarSection(month: range.to.isAfter(today) ? today : range.to),
             const SizedBox(height: Space.xxl),
+            _OutcomesSection(range: range),
+            const SizedBox(height: Space.xxl),
             _WeekCapacity(day: range.to.isAfter(today) ? today : range.to),
             const SizedBox(height: Space.xxl),
             const _RecurringSection(),
@@ -462,7 +464,13 @@ class _FocusSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionTitle('Focus'),
+        SectionTitle(
+          'Focus',
+          trailing: TextButton(
+            onPressed: () => context.push(Routes.focusHistory),
+            child: Text('History', style: AppText.label.copyWith(color: Tokens.sage)),
+          ),
+        ),
         AppCard(
           child: stats.completed + stats.endedEarly == 0
               ? const EmptyState(message: 'Start a focus session and your minutes will gather here.', mood: MascotMood.calm, compact: true)
@@ -508,6 +516,75 @@ class _FocusSection extends ConsumerWidget {
                             ],
                           ),
                         ),
+                    ],
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Completed / not completed / deleted for the period, as one stacked bar.
+class _OutcomesSection extends ConsumerWidget {
+  const _OutcomesSection({required this.range});
+  final DateRange range;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final o = ref.watch(insightsRepositoryProvider).outcomes(range);
+    final parts = [
+      ('Completed', o.completed, Tokens.mint),
+      ('Not completed', o.notCompleted, Tokens.coralSoft),
+      ('Deleted', o.deleted, Tokens.textSecondary),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionTitle(
+          'Task outcomes',
+          trailing: TextButton(
+            onPressed: () => context.push(Routes.trash),
+            child: Text('Trash', style: AppText.label.copyWith(color: Tokens.textSecondary)),
+          ),
+        ),
+        AppCard(
+          child: o.total == 0
+              ? const EmptyState(message: 'Nothing due in this period yet.', mood: MascotMood.thinking, compact: true)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      label: '${o.completed} completed, ${o.notCompleted} not completed, ${o.deleted} deleted',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          height: 14,
+                          child: Row(
+                            children: [
+                              for (final (_, n, c) in parts)
+                                if (n > 0) Expanded(flex: n, child: ColoredBox(color: c)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 22,
+                      runSpacing: 12,
+                      children: [
+                        for (final (label, n, c) in parts)
+                          StatTile(value: '$n', label: label.toLowerCase(), color: c, labelColor: Tokens.textSecondary, size: 24),
+                      ],
+                    ),
+                    if (o.deleted > 0) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '${o.deletedOccurrences} single occurrence${o.deletedOccurrences == 1 ? '' : 's'} removed · '
+                        '${o.deletedTasks} task${o.deletedTasks == 1 ? '' : 's'} moved to Trash',
+                        style: AppText.bodyS,
+                      ),
                     ],
                   ],
                 ),

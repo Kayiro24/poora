@@ -101,6 +101,16 @@ void main() {
       expect(s.isRunning, isTrue);
     });
 
+    test('focus-from-task: one countdown, cycle completes with no break', () {
+      const e = TimerEngine(FocusConfig(focusMin: 45, shortMin: 0, longMin: 0, longEvery: 1));
+      final s = e.start(clock.now());
+      expect(e.projectedCycleEnd(s, clock.now()), clock.now().add(const Duration(minutes: 45)));
+      final r = e.tick(s, clock.now().add(const Duration(minutes: 46)));
+      expect(r.state.cycleComplete, isTrue);
+      expect(r.ended.map((x) => x.phase), [FocusPhase.focus]);
+      expect(r.state.focusMsCompleted, 45 * 60000);
+    });
+
     test('projected cycle end covers remaining phases', () {
       const e = TimerEngine(cfg);
       final s = e.start(clock.now());

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { db, taskFromRow, useDb, type Db } from './db/store';
 import { Days, Range, type DateRange, type Day } from './time/days';
 import { settingsFromMap, settingsToMap, type AppSettings } from '../features/settings/appSettings';
-import type { TaskReminder, TaskSnapshot } from '../features/tasks/domain/models';
+import type { Task, TaskReminder, TaskSnapshot } from '../features/tasks/domain/models';
 import { OccurrenceGenerator } from '../features/tasks/domain/occurrenceGenerator';
 
 // --- Settings -----------------------------------------------------------------
@@ -39,6 +39,19 @@ export function selectSnapshot(s: Pick<Db, 'tasks' | 'taskReminders' | 'occurren
   return value;
 }
 export const useSnapshot = () => useDb(selectSnapshot);
+
+let trashCache: { key: unknown; value: Task[] } | null = null;
+/** Tasks in Trash, most recently deleted first. */
+export function selectTrashed(s: Pick<Db, 'tasks' | 'taskReminders'>): Task[] {
+  if (trashCache?.key === s.tasks) return trashCache.value;
+  const value = s.tasks
+    .filter((t) => t.deletedAt != null)
+    .sort((a, b) => b.deletedAt! - a.deletedAt!)
+    .map((t) => taskFromRow(t, s.taskReminders.filter((r) => r.taskId === t.id)));
+  trashCache = { key: s.tasks, value };
+  return value;
+}
+export const useTrashed = () => useDb(selectTrashed);
 export const getSnapshot = () => selectSnapshot(db());
 
 let genCache: OccurrenceGenerator | null = null;

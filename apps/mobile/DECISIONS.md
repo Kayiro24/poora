@@ -115,8 +115,69 @@ Rule applied throughout: pick the calmer, simpler option.
 - "Done" from a notification in a background isolate opens the database file directly (path is in
   the payload) and cancels sibling reminders of that occurrence. In foreground it goes through the
   repository so UI streams update.
-- Notification permission + exact alarm are requested the first time a task with a reminder is
-  saved; denial shows a banner on Tasks and a Fix button in Settings.
+- Every reminder permission is asked **once, during onboarding** (its own step; Skip lands on it,
+  never past it): notifications, then on Android 12+ exact alarms (system "Alarms & reminders"
+  screen). If anything is denied, that screen says where to turn it on — Poora's Settings →
+  Notifications, or the phone's Settings → Apps → Poora (the browser's site settings on web) — with
+  a button to open it. Poora never prompts again; Settings → Fix opens the system screen instead.
+- **Reminder tone:** `reminder_tone.wav` is Poora's own sound — synthesised (a soft rising G5–B5–D6
+  mallet chime, 1.7 s), so there's no licensing question. Android: reminders moved to channel
+  `task_reminders_v2` (high importance, this sound) because a channel's sound can't change once
+  created; the old channel is deleted. Web: the tone plays in the tab when a reminder fires, since
+  browser notifications can't carry a custom sound.
+
+## Delete, Trash and task outcomes
+
+- Delete follows Google Calendar: one-offs and "All tasks" move the task to **Trash**; "This task"
+  writes a `deleted` occurrence record; "This and following" ends the series the day before. Every
+  delete happens at once with an **Undo** snackbar (no confirm dialog), and undo restores exactly the
+  previous state (including an earlier completion).
+- Trash keeps tasks 30 days, then they are purged at launch; Restore / Delete forever / Empty Trash
+  are in Settings → Trash and Insights → Task outcomes.
+- The editor's status row is Google Calendar's **Completed / Not completed**, plus Focus on this,
+  Skip this time (recurring) and Delete.
+- Insights → **Task outcomes**: completed, not completed (= missed) and deleted for the range.
+  Deleted = single occurrences on days in the range + tasks moved to Trash during the range.
+
+## Focus tracking (Regain-style)
+
+- Four kinds of time are kept apart and labelled the same everywhere: **focus** (completed
+  focus-phase time), **paused** (the user paused), **away** (left the app/tab while a focus phase
+  ran — breaks never count) and **app use** (session wall time − away).
+- An **interruption** is leaving for ≥ 2 s during a running focus phase; away time is clipped at the
+  end of that focus phase. A 30 s heartbeat bounds the gap if the process is killed or the phone
+  restarts on screen: on recovery, time since the last heartbeat (if > 90 s) counts as away.
+- **Distracting apps** (Android only): with Usage access, the minutes spent in apps the user picked
+  are read from `UsageStatsManager` events when the session ends. Without access, only
+  interruptions are counted. The web counts tab switches (Page Visibility) and has no app list.
+- **Focus from a task:** 15 / 25 / 45 / 60 min (or custom), as one countdown with no breaks
+  (`longEvery 1, longMin 0` ends the cycle after focus). Quick lengths are on the Focus screen too.
+- Focus history (Focus → history icon, Settings, Insights → Focus → History): today / this week,
+  daily bars, interruptions per focus hour, and sessions grouped by task.
+- The export format stays `1`: session fields `pausedMs`, `awayMs`, `interruptions`, `distractions`
+  and setting `distractingApps` were added additively; older files import with defaults.
+
+## Strict mode, app blocking, daily goal ("You versus you")
+
+- **Strict mode** (Focus → Focus rules): once a focus phase starts it can't be paused, skipped or
+  ended; breaks stay free. It's saved with the live session (`focus_state.strict`), so a kill,
+  restart or closed tab resumes it directly — the recovery dialog's "close session" isn't offered.
+- **Focus guard** (Android Accessibility service, `FocusGuardService`): armed by the app for each
+  running focus phase with an expiry at the phase end (SharedPreferences), so it lapses on its own
+  even if Poora dies. It (a) sends the user home and shows a block screen when a **blocked app**
+  opens, and (b) in strict mode backs out of any package-installer or Settings screen that shows
+  "Poora" — the uninstall dialog, App info, its Accessibility toggle — until focus ends. Without the
+  service, strict mode still locks the timer and the UI asks to turn the guard on. Web can't block
+  apps or uninstalls; it gets the timer lock only.
+- **Daily focus goal** (default 120 min, editable): Focus shows today against it; history shows
+  goal days this week and the streak. Today only extends the streak once reached, never breaks it.
+- **"You versus you."** (`AppInfo.motto`): no leaderboards, groups or comparisons anywhere.
+- **Palette v1.1:** every colour moved a shade (slightly softer, cooler neutrals) so Poora doesn't
+  read as a copy of the reference. Task colours are stored as ARGB, so old swatches are remapped
+  on upgrade (DB v3 / web store v3) and on import (`TaskColors.legacy`).
+- **Clock:** paper face (`#F7F4EE`), minute dots with five-minute bars, quarter numerals for
+  one-hour plans, a gap between focus and break arcs, and a rim notch for "now"; the running ring
+  gained minute dots and a moving bead.
 
 ## Insights & accessibility
 
@@ -125,7 +186,7 @@ Rule applied throughout: pick the calmer, simpler option.
   neutral (don't break, don't count).
 - Recurring cards group by `series_id`, so split series keep one history.
 - The "ring closed" pulse plays once per day per app run (in-memory flag).
-- **Contrast:** dark ink on periwinkle is 4.65:1 (passes AA); light ink is 3.45:1 (fails), so every
+- **Contrast:** dark ink on periwinkle is 5.0:1 (passes AA); light ink is 3.2:1 (fails), so every
   task colour and pastel panel uses full-strength dark text — never dimmed on periwinkle.
 - **Category donut palette:** the spec's pastels fail categorical-palette checks on dark (too light,
   mint/ice read grey, sun≈mint). The donut uses deeper steps of the same hues — `#E8604E #2E8CB0

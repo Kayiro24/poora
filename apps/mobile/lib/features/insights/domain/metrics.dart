@@ -78,6 +78,24 @@ class WeekProgress {
   double? get rate => total == 0 ? null : done / total;
 }
 
+/// Completed / not completed / deleted for a period (Google-Calendar-style outcomes).
+class TaskOutcomes {
+  const TaskOutcomes({required this.completed, required this.notCompleted, required this.deletedOccurrences, required this.deletedTasks});
+  final int completed;
+
+  /// Past occurrences that weren't done (missed).
+  final int notCompleted;
+
+  /// Single occurrences deleted ("This task") on days in the period.
+  final int deletedOccurrences;
+
+  /// Whole tasks/series moved to Trash during the period.
+  final int deletedTasks;
+
+  int get deleted => deletedOccurrences + deletedTasks;
+  int get total => completed + notCompleted + deleted;
+}
+
 class Streak {
   const Streak(this.current, this.best);
   final int current;
@@ -305,6 +323,28 @@ abstract final class Metrics {
       m[tag] = (m[tag] ?? 0) + 1;
     }
     return m.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  }
+
+  /// Outcomes for [range]: done vs missed occurrences, plus deletions —
+  /// occurrence records marked deleted on days in the range, and trashed
+  /// tasks whose deletion time falls in it.
+  static TaskOutcomes outcomes(
+    DateRange range,
+    Iterable<Occurrence> occurrences,
+    Iterable<OccurrenceRecord> records,
+    Iterable<Task> trashed,
+  ) {
+    var done = 0, missed = 0;
+    for (final o in occurrences) {
+      if (!range.contains(o.date)) continue;
+      if (o.status == OccurrenceStatus.done) done++;
+      if (o.status == OccurrenceStatus.missed) missed++;
+    }
+    final deletedOcc = records
+        .where((r) => r.status == RecordStatus.deleted && range.contains(r.overrideDate ?? r.occurrenceDate))
+        .length;
+    final deletedTasks = trashed.where((t) => t.deletedAt != null && range.contains(Days.of(t.deletedAt!))).length;
+    return TaskOutcomes(completed: done, notCompleted: missed, deletedOccurrences: deletedOcc, deletedTasks: deletedTasks);
   }
 
   /// Focus minutes = completed focus-phase time, breaks excluded (§7).

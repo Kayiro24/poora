@@ -8,9 +8,14 @@ import { Range } from '../../../core/time/days';
 import { Icon, type IconName } from '../../../core/widgets/Icon';
 import { Sheet } from '../../../core/widgets/widgets';
 import { TasksRepository } from '../../tasks/data/tasksRepository';
-import { engineFor, FocusController, useFocus, type FocusSummary } from '../application/focusController';
+import { AppInfo } from '../../../core/appInfo';
+import { Fmt } from '../../../core/time/format';
+import { engineFor, FocusController, isLocked, useFocus, type FocusSummary } from '../application/focusController';
+
+const RING_R = 46;
 import { TimerStates } from '../domain/timerEngine';
 import { TimerFormat } from '../domain/timerFormat';
+import { FocusBreakdown } from './FocusBreakdown';
 
 /**
  * Full-screen, distraction-free session (§4.3): phase label, timer and ring.
@@ -25,6 +30,7 @@ export function FocusRunScreen() {
   const hide = useRef<number | undefined>(undefined);
   const digits = useRef<HTMLSpanElement>(null);
   const ring = useRef<SVGCircleElement>(null);
+  const head = useRef<SVGGElement>(null);
 
   // Immersive: fullscreen + keep awake while the room is open.
   useEffect(() => {
@@ -41,14 +47,19 @@ export function FocusRunScreen() {
     if (!session) return;
     const engine = engineFor(session.config);
     const fmt = new TimerFormat(settings.showSeconds, settings.showSubSeconds);
-    const C = 2 * Math.PI * 48;
+    const C = 2 * Math.PI * RING_R;
     let raf = 0;
     let last = '';
     const frame = () => {
       const now = Date.now();
       const text = fmt.main(engine.remainingMs(session.timer, now));
       if (text !== last && digits.current) digits.current.textContent = last = text;
-      ring.current?.setAttribute('stroke-dasharray', `${C * engine.progress(session.timer, now)} ${C}`);
+      const p = engine.progress(session.timer, now);
+      ring.current?.setAttribute('stroke-dasharray', `${C * p} ${C}`);
+      // The moving head: a bead with a soft halo at the end of the arc.
+      const a = p * 2 * Math.PI - Math.PI / 2;
+      head.current?.setAttribute('transform', `translate(${50 + Math.cos(a) * RING_R} ${50 + Math.sin(a) * RING_R})`);
+      head.current?.setAttribute('opacity', p > 0 ? '1' : '0');
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -71,6 +82,8 @@ export function FocusRunScreen() {
   const label = t.phase === 'focus' ? `Focus · ${t.focusIndex} of ${session.config.longEvery}` : t.phase === 'shortBreak' ? 'Short break' : 'Long break';
   const fmt = new TimerFormat(settings.showSeconds, settings.showSubSeconds);
   const paused = TimerStates.isPaused(t);
+  const locked = isLocked(session);
+  const endsAt = engineFor(session.config).phaseEndsAt(t);
   const waiting = TimerStates.isWaiting(t);
 
   return (
@@ -80,16 +93,31 @@ export function FocusRunScreen() {
       style={{ position: 'fixed', inset: 0, background: T.bg, display: 'grid', placeItems: 'center', cursor: controls ? 'default' : 'none', userSelect: 'none' }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h1 className="display" style={{ fontSize: 18, color: 'rgba(244,241,234,0.4)' }}>{label}</h1>
-        <div style={{ position: 'relative', width: 'min(340px, calc(100vw - 48px), 70vh)', aspectRatio: '1', marginTop: 28 }}>
+        <h1 className="display" style={{ fontSize: 18, color: 'rgba(243, 240, 234,0.4)' }}>{label}</h1>
+        {/* The ring is a size container: the digits scale with it, never past it. */}
+        <div style={{ position: 'relative', width: 'min(340px, calc(100vw - 48px), 70vh)', aspectRatio: '1', marginTop: 28, containerType: 'size' }}>
           <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0 }} aria-hidden>
-            <circle cx="50" cy="50" r="48" fill="none" stroke={T.outline} strokeWidth="0.9" />
-            <circle ref={ring} cx="50" cy="50" r="48" fill="none" stroke={accent} strokeWidth="0.9" strokeLinecap="round" strokeDasharray="0 400" transform="rotate(-90 50 50)" />
+            {/* Sixty minute dots just outside the track; every fifth a touch larger. */}
+            {Array.from({ length: 60 }, (_, i) => {
+              const a = (i / 60) * 2 * Math.PI - Math.PI / 2;
+              return <circle key={i} cx={50 + Math.cos(a) * 49} cy={50 + Math.sin(a) * 49} r={i % 5 === 0 ? 0.5 : 0.25} fill={T.textSecondary} fillOpacity={0.4} />;
+            })}
+            <circle cx="50" cy="50" r={RING_R} fill="none" stroke={T.outline} strokeWidth="0.6" />
+            <circle ref={ring} cx="50" cy="50" r={RING_R} fill="none" stroke={accent} strokeWidth="1.2" strokeLinecap="round" strokeDasharray="0 400" transform="rotate(-90 50 50)" />
+            <g ref={head} opacity="0">
+              <circle r="2.6" fill={accent} fillOpacity={0.18} />
+              <circle r="1.4" fill={accent} />
+            </g>
           </svg>
           <div style={{ position: 'absolute', inset: '12%', display: 'grid', placeItems: 'center' }} aria-live="off">
             <span className="row" style={{ alignItems: 'baseline', gap: 8 }}>
-              <span ref={digits} className="mono" style={{ fontSize: fmt.effectiveSubSeconds ? 'clamp(44px, 11vw, 80px)' : 'clamp(64px, 18vw, 112px)', fontWeight: 400 }} />
-              {fmt.unit && <span style={{ fontSize: 22, color: T.textSecondary }}>{fmt.unit}</span>}
+              {/* Mono digits are 0.6em wide: "25" / "44:47" / "44:47.87" fill ~70% of the ring. */}
+              <span
+                ref={digits}
+                className="mono"
+                style={{ fontSize: !fmt.showSeconds ? '34cqw' : fmt.effectiveSubSeconds ? '14cqw' : '22cqw', fontWeight: 400, whiteSpace: 'nowrap' }}
+              />
+              {fmt.unit && <span style={{ fontSize: '7cqw', color: T.textSecondary }}>{fmt.unit}</span>}
             </span>
           </div>
         </div>
@@ -102,6 +130,16 @@ export function FocusRunScreen() {
         onClick={(e) => e.stopPropagation()}
         style={{ position: 'fixed', left: 24, right: 24, bottom: 32, textAlign: 'center', opacity: controls ? 1 : 0, pointerEvents: controls ? 'auto' : 'none', transition: 'opacity 360ms var(--ease)' }}
       >
+        {locked ? (
+          <div>
+            <div className="row display d18" style={{ justifyContent: 'center', gap: 8, color: T.sage }}>
+              <Icon name="lock" size={18} />
+              Strict focus{endsAt != null ? ` · ends ${Fmt.time(new Date(endsAt), settings.use24h)}` : ''}
+            </div>
+            <p className="body-s" style={{ marginTop: 6 }}>No pausing, no ending early. {AppInfo.motto}</p>
+          </div>
+        ) : (
+        <>
         <div className="row" style={{ justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
           {!waiting && (
             <ControlPill label={paused ? 'Resume' : 'Pause'} icon={paused ? 'play' : 'pause'} onClick={() => { reveal(); if (paused) FocusController.resume(); else FocusController.pause(); }} />
@@ -110,6 +148,8 @@ export function FocusRunScreen() {
           <EndPill longPress={settings.longPressToEnd} />
         </div>
         {settings.longPressToEnd && <p className="body-s" style={{ marginTop: 10 }}>Hold END to finish early</p>}
+        </>
+        )}
       </div>
     </div>
   );
@@ -179,6 +219,15 @@ function Summary({ summary, onDone }: { summary: FocusSummary; onDone: () => voi
             <div className="mono" style={{ fontSize: 44, color: T.sage }}>{summary.sessionsCompleted}</div>
             <div className="body-s" style={{ marginTop: 4 }}>sessions completed</div>
           </div>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <FocusBreakdown
+            focusMs={summary.focusMinutes * 60000}
+            pausedMs={summary.pausedMs}
+            awayMs={summary.awayMs}
+            interruptions={summary.interruptions}
+            appUsageMs={summary.appUsageMs}
+          />
         </div>
         {linked && (
           <div className="row" style={{ marginTop: 20, padding: 16, background: T.surfaceHigh, borderRadius: 'var(--r-inner)' }}>

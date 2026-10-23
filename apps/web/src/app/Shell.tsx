@@ -8,7 +8,8 @@ import { confirm } from '../core/widgets/overlays';
 import { Wordmark } from '../core/widgets/widgets';
 import { FocusController, useFocus } from '../features/focus/application/focusController';
 import { DaySheetHost } from '../features/insights/ui/calendar';
-import { TaskEditorHost } from '../features/tasks/ui/TaskEditor';
+import { TasksRepository } from '../features/tasks/data/tasksRepository';
+import { FocusOnTaskHost, TaskEditorHost } from '../features/tasks/ui/TaskEditor';
 
 const tabs: { to: string; label: string; icon: IconName; active: IconName }[] = [
   { to: '/home', label: 'Home', icon: 'homeOutline', active: 'home' },
@@ -39,6 +40,7 @@ export function Shell() {
     if (booted) return;
     booted = true;
     ReminderScheduler.reschedule();
+    TasksRepository.purgeOldTrash();
     FocusController.checkRecovery();
     const r = useFocus.getState().recovery;
     if (!r) return;
@@ -94,6 +96,7 @@ export function Shell() {
         <Outlet />
       </main>
       <TaskEditorHost />
+      <FocusOnTaskHost />
       <DaySheetHost />
       {isTab && (
         <nav className="nav-float" aria-label="Main">

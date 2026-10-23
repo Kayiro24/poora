@@ -17,7 +17,7 @@ Importing **replaces** everything on the receiving side (it's a transfer, not a 
 | `app` | string | `"Poora"` |
 | `format` | int | `1`. Readers reject any other value. |
 | `exportedAt` | string | ISO timestamp; informational |
-| `tasks` | Task[] | includes soft-deleted rows (`deletedAt` set) |
+| `tasks` | Task[] | includes rows in Trash (`deletedAt` set; purged after 30 days) |
 | `taskReminders` | Reminder[] | |
 | `occurrenceRecords` | Record[] | only occurrences that differ from the generated default |
 | `focusSessions` | Session[] | finished sessions |
@@ -33,7 +33,7 @@ The live focus session and held reminders are device-local and never exported.
 - **Instants** (`createdAt`, `updatedAt`, `deletedAt`, `completedAt`, `startedAt`, `endedAt`): epoch
   **milliseconds** (int).
 - **Minutes of day** (`startMinute`, `overrideStartMinute`, `atMinute`): 0–1439.
-- **Colours**: ARGB int, e.g. coral `0xFFF2705E` = `4294078558`.
+- **Colours**: ARGB int, e.g. coral `0xFFEF7867` = `4293884007`.
 - Missing optional values are `null`, never omitted.
 
 ## Rows
@@ -47,11 +47,18 @@ The live focus session and held reminders are device-local and never exported.
 **Reminder**: `id`, `taskId`, `offsetMin` (negative = before), `atMinute?` (set for "on the day at …").
 
 **Record**: `id`, `taskId`, `occurrenceDate` (the original generated date — unique per task), `status`
-(`none` · `done` · `skipped` · `deleted`; "missed" is derived, never stored), `completedAt?`,
+(`none` · `done` · `skipped` · `deleted` — "This task" deleted from a series; "missed" is derived, never stored), `completedAt?`,
 `overrideDate?`, `overrideStartMinute?`, `overrideTitle?`, `late` (back-filled completion).
 
 **Session**: `id`, `startedAt`, `endedAt?`, `plannedFocusMin`, `shortBreakMin`, `longBreakMin`,
-`longEvery`, `focusMsCompleted`, `phasesCompleted`, `endedEarly`, `linkedTaskId?`, `linkedOccurrenceDate?`.
+`longEvery`, `focusMsCompleted`, `phasesCompleted`, `endedEarly`, `linkedTaskId?`, `linkedOccurrenceDate?`,
+`pausedMs` (time the user had it paused), `awayMs` (time spent outside the app while focus ran),
+`interruptions` (times the user left during focus), `distractions?` (JSON string: Android package →
+ms spent in apps chosen as distracting; `null` elsewhere). Focus, paused and away time never overlap;
+app use is `endedAt − startedAt − awayMs`.
+
+These four were added to v1 additively: readers fill `0` / `null` when an older file lacks them.
+Setting `distractingApps` is a comma-separated list of Android package names.
 
 **Preset**: `id`, `name`, `focusMin`, `shortMin`, `longMin`, `longEvery`, `sort`.
 

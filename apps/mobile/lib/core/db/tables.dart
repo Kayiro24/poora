@@ -85,6 +85,14 @@ class FocusSessions extends Table {
   TextColumn get linkedTaskId => text().nullable()();
   TextColumn get linkedOccurrenceDate => text().nullable()();
 
+  // Focus tracking (schema v2).
+  IntColumn get pausedMs => integer().withDefault(const Constant(0))();
+  IntColumn get awayMs => integer().withDefault(const Constant(0))();
+  IntColumn get interruptions => integer().withDefault(const Constant(0))();
+
+  /// JSON object: Android package name → ms in that app during the session.
+  TextColumn get distractions => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -105,6 +113,17 @@ class FocusStates extends Table {
   IntColumn get pausedAccumMs => integer().withDefault(const Constant(0))();
   IntColumn get focusMsCompleted => integer().withDefault(const Constant(0))();
   IntColumn get phasesCompleted => integer().withDefault(const Constant(0))();
+
+  // Focus tracking (schema v2).
+  IntColumn get pausedTotalMs => integer().withDefault(const Constant(0))();
+  IntColumn get interruptions => integer().withDefault(const Constant(0))();
+  IntColumn get awayMs => integer().withDefault(const Constant(0))();
+  IntColumn get awayStartedAt => integer().nullable()();
+  IntColumn get awayCapAt => integer().nullable()();
+  IntColumn get lastSeenAt => integer().nullable()();
+
+  // Strict mode (schema v3): the focus phase can't be paused, skipped or ended.
+  BoolColumn get strict => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

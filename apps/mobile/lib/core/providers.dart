@@ -9,6 +9,8 @@ import 'package:poora/core/notifications/notification_service.dart';
 import 'package:poora/core/notifications/reminder_scheduler.dart';
 import 'package:poora/core/platform/dnd_service.dart';
 import 'package:poora/core/platform/feedback.dart';
+import 'package:poora/core/platform/guard_service.dart';
+import 'package:poora/core/platform/usage_service.dart';
 import 'package:poora/core/time/clock.dart';
 import 'package:poora/core/time/date_utils.dart';
 import 'package:poora/core/time/format.dart';
@@ -32,6 +34,8 @@ final settingsDaoProvider = Provider(
 
 final notificationServiceProvider = Provider((ref) => NotificationService());
 final dndServiceProvider = Provider((ref) => DndService());
+final usageServiceProvider = Provider((ref) => UsageService());
+final guardServiceProvider = Provider((ref) => GuardService());
 final feedbackProvider = Provider(
   (ref) => AppFeedback(() => ref.read(settingsProvider)),
 );

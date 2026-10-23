@@ -14,6 +14,7 @@ import 'package:poora/core/theme/typography.dart';
 import 'package:poora/core/widgets/common.dart';
 import 'package:poora/core/widgets/poora_logo.dart';
 import 'package:poora/core/widgets/screen_header.dart';
+import 'package:poora/features/focus/ui/distracting_apps_screen.dart';
 import 'package:poora/features/settings/app_settings.dart';
 import 'package:poora/features/settings/data_reset.dart';
 import 'package:poora/features/settings/data_transfer.dart';
@@ -32,13 +33,30 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBindingObserver {
   late final _name = TextEditingController(text: ref.read(settingsProvider).name);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _name.dispose();
     super.dispose();
+  }
+
+  // Back from the system settings screens: re-read the permissions.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    ref
+      ..invalidate(notificationsEnabledProvider)
+      ..invalidate(exactAlarmProvider)
+      ..invalidate(guardEnabledProvider);
   }
 
   Future<void> _update(AppSettings Function(AppSettings) f) =>
@@ -121,6 +139,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final notif = ref.watch(notificationsEnabledProvider).value;
     final exact = ref.watch(exactAlarmProvider).value;
     final isAndroid = !kIsWeb && Platform.isAndroid;
+    final distracting = s.distractingApps.length;
+    final guardOn = ref.watch(guardEnabledProvider).value;
 
     return Scaffold(
       body: SafeArea(
@@ -196,11 +216,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 SettingsRow(
                   title: 'Notifications',
-                  subtitle: notif == null ? 'Checking…' : (notif ? 'Allowed' : 'Off — reminders won’t appear'),
+                  subtitle: notif == null ? 'Checking…' : (notif ? 'Allowed' : 'Off — or turn on in phone Settings → Apps → Poora'),
                   trailing: notif == false
                       ? TextButton(
                           onPressed: () async {
-                            await ref.read(notificationServiceProvider).requestNotifications();
+                            final notif = ref.read(notificationServiceProvider);
+                            // After a denial Android won't show the prompt again: open the system screen.
+                            if (!await notif.requestNotifications()) await notif.openSystemSettings();
                             ref.invalidate(notificationsEnabledProvider);
                           },
                           child: Text('Fix', style: AppText.label.copyWith(color: Tokens.coral)),
@@ -229,6 +251,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
                   onTap: () => context.push(Routes.focusSettings),
                 ),
+                SettingsRow(
+                  title: 'Focus history',
+                  subtitle: 'Daily and weekly focus, grouped by task',
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
+                  onTap: () => context.push(Routes.focusHistory),
+                ),
+                if (isAndroid) ...[
+                  SettingsRow(
+                    title: 'Blocked apps',
+                    subtitle: s.blockedApps.isEmpty ? 'Apps that won’t open during focus' : '${s.blockedApps.length} blocked during focus',
+                    trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
+                    onTap: () => context.push(Routes.blockedApps),
+                  ),
+                  SettingsRow(
+                    title: 'Focus guard',
+                    subtitle: guardOn == true
+                        ? 'On — blocks apps and protects strict focus'
+                        : 'Off — Settings → Accessibility → Poora focus guard',
+                    trailing: guardOn == true
+                        ? const Icon(Icons.check_circle_rounded, color: Tokens.mint)
+                        : TextButton(
+                            onPressed: () => ref.read(guardServiceProvider).openSettings(),
+                            child: Text('Turn on', style: AppText.label.copyWith(color: Tokens.coral)),
+                          ),
+                  ),
+                ],
+                if (isAndroid)
+                  SettingsRow(
+                    title: 'Distracting apps',
+                    subtitle: distracting == 0 ? 'Pick apps to track during focus' : '$distracting selected',
+                    trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
+                    onTap: () => context.push(Routes.distractingApps),
+                  ),
               ],
             ),
             SettingsGroup(
@@ -245,6 +300,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: 'Replace everything from an export (app or web)',
                   trailing: const Icon(Icons.file_open_outlined, color: Tokens.textSecondary),
                   onTap: _import,
+                ),
+                SettingsRow(
+                  title: 'Trash',
+                  subtitle: 'Deleted tasks, kept for 30 days',
+                  trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
+                  onTap: () => context.push(Routes.trash),
                 ),
               ],
             ),
@@ -268,7 +329,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const SettingsRow(
                   title: 'Version ${AppInfo.version}',
-                  subtitle: '${AppInfo.meaning}\n${AppInfo.subline} Offline, no account — your data stays on this phone.',
+                  subtitle: '${AppInfo.meaning}\n${AppInfo.subline} ${AppInfo.motto} Offline, no account — your data stays on this phone.',
                 ),
                 SettingsRow(
                   title: 'Open-source licences',

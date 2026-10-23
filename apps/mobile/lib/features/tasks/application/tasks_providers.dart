@@ -63,3 +63,6 @@ final hasOverdueProvider = Provider<bool>((ref) {
             o.endAt!.isBefore(now)),
   );
 });
+
+/// Tasks in Trash, newest first (kept 30 days, like Google Calendar).
+final trashedTasksProvider = StreamProvider<List<Task>>((ref) => ref.watch(tasksDaoProvider).watchDeleted());

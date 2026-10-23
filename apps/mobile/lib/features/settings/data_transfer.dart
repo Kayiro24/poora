@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:poora/core/app_info.dart';
 import 'package:poora/core/db/database.dart';
+import 'package:poora/core/theme/tokens.dart';
 
 /// JSON export/import of every table (Settings → Export / Import).
 class DataTransfer {
@@ -12,6 +13,9 @@ class DataTransfer {
   final AppDatabase db;
 
   static const format = 1;
+
+  /// Additive format-1 fields, filled in when importing older exports.
+  static const focusSessionDefaults = <String, Object?>{'pausedMs': 0, 'awayMs': 0, 'interruptions': 0, 'distractions': null};
 
   Future<Map<String, Object?>> exportMap() async => {
     'app': AppInfo.name,
@@ -52,7 +56,8 @@ class DataTransfer {
     await db.transaction(() async {
       await db.deleteEverything();
       for (final j in rows('tasks')) {
-        await db.into(db.tasks).insert(TaskRow.fromJson(j));
+        final row = TaskRow.fromJson(j);
+        await db.into(db.tasks).insert(row.copyWith(color: TaskColors.migrate(row.color)));
       }
       for (final j in rows('taskReminders')) {
         await db.into(db.taskReminders).insert(TaskReminderRow.fromJson(j));
@@ -61,7 +66,8 @@ class DataTransfer {
         await db.into(db.occurrenceRecords).insert(OccurrenceRecordRow.fromJson(j));
       }
       for (final j in rows('focusSessions')) {
-        await db.into(db.focusSessions).insert(FocusSessionRow.fromJson(j));
+        // Focus tracking fields were added later; older files lack them.
+        await db.into(db.focusSessions).insert(FocusSessionRow.fromJson({...focusSessionDefaults, ...j}));
       }
       for (final j in rows('presets')) {
         await db.into(db.presets).insert(PresetRow.fromJson(j));

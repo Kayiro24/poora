@@ -2218,6 +2218,51 @@ class $FocusSessionsTable extends FocusSessions
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _pausedMsMeta = const VerificationMeta(
+    'pausedMs',
+  );
+  @override
+  late final GeneratedColumn<int> pausedMs = GeneratedColumn<int>(
+    'paused_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _awayMsMeta = const VerificationMeta('awayMs');
+  @override
+  late final GeneratedColumn<int> awayMs = GeneratedColumn<int>(
+    'away_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _interruptionsMeta = const VerificationMeta(
+    'interruptions',
+  );
+  @override
+  late final GeneratedColumn<int> interruptions = GeneratedColumn<int>(
+    'interruptions',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _distractionsMeta = const VerificationMeta(
+    'distractions',
+  );
+  @override
+  late final GeneratedColumn<String> distractions = GeneratedColumn<String>(
+    'distractions',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2232,6 +2277,10 @@ class $FocusSessionsTable extends FocusSessions
     endedEarly,
     linkedTaskId,
     linkedOccurrenceDate,
+    pausedMs,
+    awayMs,
+    interruptions,
+    distractions,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2347,6 +2396,36 @@ class $FocusSessionsTable extends FocusSessions
         ),
       );
     }
+    if (data.containsKey('paused_ms')) {
+      context.handle(
+        _pausedMsMeta,
+        pausedMs.isAcceptableOrUnknown(data['paused_ms']!, _pausedMsMeta),
+      );
+    }
+    if (data.containsKey('away_ms')) {
+      context.handle(
+        _awayMsMeta,
+        awayMs.isAcceptableOrUnknown(data['away_ms']!, _awayMsMeta),
+      );
+    }
+    if (data.containsKey('interruptions')) {
+      context.handle(
+        _interruptionsMeta,
+        interruptions.isAcceptableOrUnknown(
+          data['interruptions']!,
+          _interruptionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('distractions')) {
+      context.handle(
+        _distractionsMeta,
+        distractions.isAcceptableOrUnknown(
+          data['distractions']!,
+          _distractionsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2404,6 +2483,22 @@ class $FocusSessionsTable extends FocusSessions
         DriftSqlType.string,
         data['${effectivePrefix}linked_occurrence_date'],
       ),
+      pausedMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}paused_ms'],
+      )!,
+      awayMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}away_ms'],
+      )!,
+      interruptions: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}interruptions'],
+      )!,
+      distractions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}distractions'],
+      ),
     );
   }
 
@@ -2426,6 +2521,12 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
   final bool endedEarly;
   final String? linkedTaskId;
   final String? linkedOccurrenceDate;
+  final int pausedMs;
+  final int awayMs;
+  final int interruptions;
+
+  /// JSON object: Android package name → ms in that app during the session.
+  final String? distractions;
   const FocusSessionRow({
     required this.id,
     required this.startedAt,
@@ -2439,6 +2540,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
     required this.endedEarly,
     this.linkedTaskId,
     this.linkedOccurrenceDate,
+    required this.pausedMs,
+    required this.awayMs,
+    required this.interruptions,
+    this.distractions,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2460,6 +2565,12 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
     }
     if (!nullToAbsent || linkedOccurrenceDate != null) {
       map['linked_occurrence_date'] = Variable<String>(linkedOccurrenceDate);
+    }
+    map['paused_ms'] = Variable<int>(pausedMs);
+    map['away_ms'] = Variable<int>(awayMs);
+    map['interruptions'] = Variable<int>(interruptions);
+    if (!nullToAbsent || distractions != null) {
+      map['distractions'] = Variable<String>(distractions);
     }
     return map;
   }
@@ -2484,6 +2595,12 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
       linkedOccurrenceDate: linkedOccurrenceDate == null && nullToAbsent
           ? const Value.absent()
           : Value(linkedOccurrenceDate),
+      pausedMs: Value(pausedMs),
+      awayMs: Value(awayMs),
+      interruptions: Value(interruptions),
+      distractions: distractions == null && nullToAbsent
+          ? const Value.absent()
+          : Value(distractions),
     );
   }
 
@@ -2507,6 +2624,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
       linkedOccurrenceDate: serializer.fromJson<String?>(
         json['linkedOccurrenceDate'],
       ),
+      pausedMs: serializer.fromJson<int>(json['pausedMs']),
+      awayMs: serializer.fromJson<int>(json['awayMs']),
+      interruptions: serializer.fromJson<int>(json['interruptions']),
+      distractions: serializer.fromJson<String?>(json['distractions']),
     );
   }
   @override
@@ -2525,6 +2646,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
       'endedEarly': serializer.toJson<bool>(endedEarly),
       'linkedTaskId': serializer.toJson<String?>(linkedTaskId),
       'linkedOccurrenceDate': serializer.toJson<String?>(linkedOccurrenceDate),
+      'pausedMs': serializer.toJson<int>(pausedMs),
+      'awayMs': serializer.toJson<int>(awayMs),
+      'interruptions': serializer.toJson<int>(interruptions),
+      'distractions': serializer.toJson<String?>(distractions),
     };
   }
 
@@ -2541,6 +2666,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
     bool? endedEarly,
     Value<String?> linkedTaskId = const Value.absent(),
     Value<String?> linkedOccurrenceDate = const Value.absent(),
+    int? pausedMs,
+    int? awayMs,
+    int? interruptions,
+    Value<String?> distractions = const Value.absent(),
   }) => FocusSessionRow(
     id: id ?? this.id,
     startedAt: startedAt ?? this.startedAt,
@@ -2556,6 +2685,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
     linkedOccurrenceDate: linkedOccurrenceDate.present
         ? linkedOccurrenceDate.value
         : this.linkedOccurrenceDate,
+    pausedMs: pausedMs ?? this.pausedMs,
+    awayMs: awayMs ?? this.awayMs,
+    interruptions: interruptions ?? this.interruptions,
+    distractions: distractions.present ? distractions.value : this.distractions,
   );
   FocusSessionRow copyWithCompanion(FocusSessionsCompanion data) {
     return FocusSessionRow(
@@ -2587,6 +2720,14 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
       linkedOccurrenceDate: data.linkedOccurrenceDate.present
           ? data.linkedOccurrenceDate.value
           : this.linkedOccurrenceDate,
+      pausedMs: data.pausedMs.present ? data.pausedMs.value : this.pausedMs,
+      awayMs: data.awayMs.present ? data.awayMs.value : this.awayMs,
+      interruptions: data.interruptions.present
+          ? data.interruptions.value
+          : this.interruptions,
+      distractions: data.distractions.present
+          ? data.distractions.value
+          : this.distractions,
     );
   }
 
@@ -2604,7 +2745,11 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
           ..write('phasesCompleted: $phasesCompleted, ')
           ..write('endedEarly: $endedEarly, ')
           ..write('linkedTaskId: $linkedTaskId, ')
-          ..write('linkedOccurrenceDate: $linkedOccurrenceDate')
+          ..write('linkedOccurrenceDate: $linkedOccurrenceDate, ')
+          ..write('pausedMs: $pausedMs, ')
+          ..write('awayMs: $awayMs, ')
+          ..write('interruptions: $interruptions, ')
+          ..write('distractions: $distractions')
           ..write(')'))
         .toString();
   }
@@ -2623,6 +2768,10 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
     endedEarly,
     linkedTaskId,
     linkedOccurrenceDate,
+    pausedMs,
+    awayMs,
+    interruptions,
+    distractions,
   );
   @override
   bool operator ==(Object other) =>
@@ -2639,7 +2788,11 @@ class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
           other.phasesCompleted == this.phasesCompleted &&
           other.endedEarly == this.endedEarly &&
           other.linkedTaskId == this.linkedTaskId &&
-          other.linkedOccurrenceDate == this.linkedOccurrenceDate);
+          other.linkedOccurrenceDate == this.linkedOccurrenceDate &&
+          other.pausedMs == this.pausedMs &&
+          other.awayMs == this.awayMs &&
+          other.interruptions == this.interruptions &&
+          other.distractions == this.distractions);
 }
 
 class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
@@ -2655,6 +2808,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
   final Value<bool> endedEarly;
   final Value<String?> linkedTaskId;
   final Value<String?> linkedOccurrenceDate;
+  final Value<int> pausedMs;
+  final Value<int> awayMs;
+  final Value<int> interruptions;
+  final Value<String?> distractions;
   final Value<int> rowid;
   const FocusSessionsCompanion({
     this.id = const Value.absent(),
@@ -2669,6 +2826,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
     this.endedEarly = const Value.absent(),
     this.linkedTaskId = const Value.absent(),
     this.linkedOccurrenceDate = const Value.absent(),
+    this.pausedMs = const Value.absent(),
+    this.awayMs = const Value.absent(),
+    this.interruptions = const Value.absent(),
+    this.distractions = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   FocusSessionsCompanion.insert({
@@ -2684,6 +2845,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
     this.endedEarly = const Value.absent(),
     this.linkedTaskId = const Value.absent(),
     this.linkedOccurrenceDate = const Value.absent(),
+    this.pausedMs = const Value.absent(),
+    this.awayMs = const Value.absent(),
+    this.interruptions = const Value.absent(),
+    this.distractions = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        startedAt = Value(startedAt),
@@ -2704,6 +2869,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
     Expression<bool>? endedEarly,
     Expression<String>? linkedTaskId,
     Expression<String>? linkedOccurrenceDate,
+    Expression<int>? pausedMs,
+    Expression<int>? awayMs,
+    Expression<int>? interruptions,
+    Expression<String>? distractions,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2720,6 +2889,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
       if (linkedTaskId != null) 'linked_task_id': linkedTaskId,
       if (linkedOccurrenceDate != null)
         'linked_occurrence_date': linkedOccurrenceDate,
+      if (pausedMs != null) 'paused_ms': pausedMs,
+      if (awayMs != null) 'away_ms': awayMs,
+      if (interruptions != null) 'interruptions': interruptions,
+      if (distractions != null) 'distractions': distractions,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2737,6 +2910,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
     Value<bool>? endedEarly,
     Value<String?>? linkedTaskId,
     Value<String?>? linkedOccurrenceDate,
+    Value<int>? pausedMs,
+    Value<int>? awayMs,
+    Value<int>? interruptions,
+    Value<String?>? distractions,
     Value<int>? rowid,
   }) {
     return FocusSessionsCompanion(
@@ -2752,6 +2929,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
       endedEarly: endedEarly ?? this.endedEarly,
       linkedTaskId: linkedTaskId ?? this.linkedTaskId,
       linkedOccurrenceDate: linkedOccurrenceDate ?? this.linkedOccurrenceDate,
+      pausedMs: pausedMs ?? this.pausedMs,
+      awayMs: awayMs ?? this.awayMs,
+      interruptions: interruptions ?? this.interruptions,
+      distractions: distractions ?? this.distractions,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2797,6 +2978,18 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
         linkedOccurrenceDate.value,
       );
     }
+    if (pausedMs.present) {
+      map['paused_ms'] = Variable<int>(pausedMs.value);
+    }
+    if (awayMs.present) {
+      map['away_ms'] = Variable<int>(awayMs.value);
+    }
+    if (interruptions.present) {
+      map['interruptions'] = Variable<int>(interruptions.value);
+    }
+    if (distractions.present) {
+      map['distractions'] = Variable<String>(distractions.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2818,6 +3011,10 @@ class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
           ..write('endedEarly: $endedEarly, ')
           ..write('linkedTaskId: $linkedTaskId, ')
           ..write('linkedOccurrenceDate: $linkedOccurrenceDate, ')
+          ..write('pausedMs: $pausedMs, ')
+          ..write('awayMs: $awayMs, ')
+          ..write('interruptions: $interruptions, ')
+          ..write('distractions: $distractions, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2940,6 +3137,86 @@ class $FocusStatesTable extends FocusStates
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _pausedTotalMsMeta = const VerificationMeta(
+    'pausedTotalMs',
+  );
+  @override
+  late final GeneratedColumn<int> pausedTotalMs = GeneratedColumn<int>(
+    'paused_total_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _interruptionsMeta = const VerificationMeta(
+    'interruptions',
+  );
+  @override
+  late final GeneratedColumn<int> interruptions = GeneratedColumn<int>(
+    'interruptions',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _awayMsMeta = const VerificationMeta('awayMs');
+  @override
+  late final GeneratedColumn<int> awayMs = GeneratedColumn<int>(
+    'away_ms',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _awayStartedAtMeta = const VerificationMeta(
+    'awayStartedAt',
+  );
+  @override
+  late final GeneratedColumn<int> awayStartedAt = GeneratedColumn<int>(
+    'away_started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _awayCapAtMeta = const VerificationMeta(
+    'awayCapAt',
+  );
+  @override
+  late final GeneratedColumn<int> awayCapAt = GeneratedColumn<int>(
+    'away_cap_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
+    'lastSeenAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastSeenAt = GeneratedColumn<int>(
+    'last_seen_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _strictMeta = const VerificationMeta('strict');
+  @override
+  late final GeneratedColumn<bool> strict = GeneratedColumn<bool>(
+    'strict',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("strict" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2952,6 +3229,13 @@ class $FocusStatesTable extends FocusStates
     pausedAccumMs,
     focusMsCompleted,
     phasesCompleted,
+    pausedTotalMs,
+    interruptions,
+    awayMs,
+    awayStartedAt,
+    awayCapAt,
+    lastSeenAt,
+    strict,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3045,6 +3329,60 @@ class $FocusStatesTable extends FocusStates
         ),
       );
     }
+    if (data.containsKey('paused_total_ms')) {
+      context.handle(
+        _pausedTotalMsMeta,
+        pausedTotalMs.isAcceptableOrUnknown(
+          data['paused_total_ms']!,
+          _pausedTotalMsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('interruptions')) {
+      context.handle(
+        _interruptionsMeta,
+        interruptions.isAcceptableOrUnknown(
+          data['interruptions']!,
+          _interruptionsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('away_ms')) {
+      context.handle(
+        _awayMsMeta,
+        awayMs.isAcceptableOrUnknown(data['away_ms']!, _awayMsMeta),
+      );
+    }
+    if (data.containsKey('away_started_at')) {
+      context.handle(
+        _awayStartedAtMeta,
+        awayStartedAt.isAcceptableOrUnknown(
+          data['away_started_at']!,
+          _awayStartedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('away_cap_at')) {
+      context.handle(
+        _awayCapAtMeta,
+        awayCapAt.isAcceptableOrUnknown(data['away_cap_at']!, _awayCapAtMeta),
+      );
+    }
+    if (data.containsKey('last_seen_at')) {
+      context.handle(
+        _lastSeenAtMeta,
+        lastSeenAt.isAcceptableOrUnknown(
+          data['last_seen_at']!,
+          _lastSeenAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('strict')) {
+      context.handle(
+        _strictMeta,
+        strict.isAcceptableOrUnknown(data['strict']!, _strictMeta),
+      );
+    }
     return context;
   }
 
@@ -3094,6 +3432,34 @@ class $FocusStatesTable extends FocusStates
         DriftSqlType.int,
         data['${effectivePrefix}phases_completed'],
       )!,
+      pausedTotalMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}paused_total_ms'],
+      )!,
+      interruptions: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}interruptions'],
+      )!,
+      awayMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}away_ms'],
+      )!,
+      awayStartedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}away_started_at'],
+      ),
+      awayCapAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}away_cap_at'],
+      ),
+      lastSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_seen_at'],
+      ),
+      strict: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}strict'],
+      )!,
     );
   }
 
@@ -3114,6 +3480,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
   final int pausedAccumMs;
   final int focusMsCompleted;
   final int phasesCompleted;
+  final int pausedTotalMs;
+  final int interruptions;
+  final int awayMs;
+  final int? awayStartedAt;
+  final int? awayCapAt;
+  final int? lastSeenAt;
+  final bool strict;
   const FocusStateRow({
     required this.id,
     required this.sessionId,
@@ -3125,6 +3498,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
     required this.pausedAccumMs,
     required this.focusMsCompleted,
     required this.phasesCompleted,
+    required this.pausedTotalMs,
+    required this.interruptions,
+    required this.awayMs,
+    this.awayStartedAt,
+    this.awayCapAt,
+    this.lastSeenAt,
+    required this.strict,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3143,6 +3523,19 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
     map['paused_accum_ms'] = Variable<int>(pausedAccumMs);
     map['focus_ms_completed'] = Variable<int>(focusMsCompleted);
     map['phases_completed'] = Variable<int>(phasesCompleted);
+    map['paused_total_ms'] = Variable<int>(pausedTotalMs);
+    map['interruptions'] = Variable<int>(interruptions);
+    map['away_ms'] = Variable<int>(awayMs);
+    if (!nullToAbsent || awayStartedAt != null) {
+      map['away_started_at'] = Variable<int>(awayStartedAt);
+    }
+    if (!nullToAbsent || awayCapAt != null) {
+      map['away_cap_at'] = Variable<int>(awayCapAt);
+    }
+    if (!nullToAbsent || lastSeenAt != null) {
+      map['last_seen_at'] = Variable<int>(lastSeenAt);
+    }
+    map['strict'] = Variable<bool>(strict);
     return map;
   }
 
@@ -3162,6 +3555,19 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
       pausedAccumMs: Value(pausedAccumMs),
       focusMsCompleted: Value(focusMsCompleted),
       phasesCompleted: Value(phasesCompleted),
+      pausedTotalMs: Value(pausedTotalMs),
+      interruptions: Value(interruptions),
+      awayMs: Value(awayMs),
+      awayStartedAt: awayStartedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(awayStartedAt),
+      awayCapAt: awayCapAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(awayCapAt),
+      lastSeenAt: lastSeenAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSeenAt),
+      strict: Value(strict),
     );
   }
 
@@ -3181,6 +3587,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
       pausedAccumMs: serializer.fromJson<int>(json['pausedAccumMs']),
       focusMsCompleted: serializer.fromJson<int>(json['focusMsCompleted']),
       phasesCompleted: serializer.fromJson<int>(json['phasesCompleted']),
+      pausedTotalMs: serializer.fromJson<int>(json['pausedTotalMs']),
+      interruptions: serializer.fromJson<int>(json['interruptions']),
+      awayMs: serializer.fromJson<int>(json['awayMs']),
+      awayStartedAt: serializer.fromJson<int?>(json['awayStartedAt']),
+      awayCapAt: serializer.fromJson<int?>(json['awayCapAt']),
+      lastSeenAt: serializer.fromJson<int?>(json['lastSeenAt']),
+      strict: serializer.fromJson<bool>(json['strict']),
     );
   }
   @override
@@ -3197,6 +3610,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
       'pausedAccumMs': serializer.toJson<int>(pausedAccumMs),
       'focusMsCompleted': serializer.toJson<int>(focusMsCompleted),
       'phasesCompleted': serializer.toJson<int>(phasesCompleted),
+      'pausedTotalMs': serializer.toJson<int>(pausedTotalMs),
+      'interruptions': serializer.toJson<int>(interruptions),
+      'awayMs': serializer.toJson<int>(awayMs),
+      'awayStartedAt': serializer.toJson<int?>(awayStartedAt),
+      'awayCapAt': serializer.toJson<int?>(awayCapAt),
+      'lastSeenAt': serializer.toJson<int?>(lastSeenAt),
+      'strict': serializer.toJson<bool>(strict),
     };
   }
 
@@ -3211,6 +3631,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
     int? pausedAccumMs,
     int? focusMsCompleted,
     int? phasesCompleted,
+    int? pausedTotalMs,
+    int? interruptions,
+    int? awayMs,
+    Value<int?> awayStartedAt = const Value.absent(),
+    Value<int?> awayCapAt = const Value.absent(),
+    Value<int?> lastSeenAt = const Value.absent(),
+    bool? strict,
   }) => FocusStateRow(
     id: id ?? this.id,
     sessionId: sessionId ?? this.sessionId,
@@ -3224,6 +3651,15 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
     pausedAccumMs: pausedAccumMs ?? this.pausedAccumMs,
     focusMsCompleted: focusMsCompleted ?? this.focusMsCompleted,
     phasesCompleted: phasesCompleted ?? this.phasesCompleted,
+    pausedTotalMs: pausedTotalMs ?? this.pausedTotalMs,
+    interruptions: interruptions ?? this.interruptions,
+    awayMs: awayMs ?? this.awayMs,
+    awayStartedAt: awayStartedAt.present
+        ? awayStartedAt.value
+        : this.awayStartedAt,
+    awayCapAt: awayCapAt.present ? awayCapAt.value : this.awayCapAt,
+    lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+    strict: strict ?? this.strict,
   );
   FocusStateRow copyWithCompanion(FocusStatesCompanion data) {
     return FocusStateRow(
@@ -3249,6 +3685,21 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
       phasesCompleted: data.phasesCompleted.present
           ? data.phasesCompleted.value
           : this.phasesCompleted,
+      pausedTotalMs: data.pausedTotalMs.present
+          ? data.pausedTotalMs.value
+          : this.pausedTotalMs,
+      interruptions: data.interruptions.present
+          ? data.interruptions.value
+          : this.interruptions,
+      awayMs: data.awayMs.present ? data.awayMs.value : this.awayMs,
+      awayStartedAt: data.awayStartedAt.present
+          ? data.awayStartedAt.value
+          : this.awayStartedAt,
+      awayCapAt: data.awayCapAt.present ? data.awayCapAt.value : this.awayCapAt,
+      lastSeenAt: data.lastSeenAt.present
+          ? data.lastSeenAt.value
+          : this.lastSeenAt,
+      strict: data.strict.present ? data.strict.value : this.strict,
     );
   }
 
@@ -3264,7 +3715,14 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
           ..write('pausedAt: $pausedAt, ')
           ..write('pausedAccumMs: $pausedAccumMs, ')
           ..write('focusMsCompleted: $focusMsCompleted, ')
-          ..write('phasesCompleted: $phasesCompleted')
+          ..write('phasesCompleted: $phasesCompleted, ')
+          ..write('pausedTotalMs: $pausedTotalMs, ')
+          ..write('interruptions: $interruptions, ')
+          ..write('awayMs: $awayMs, ')
+          ..write('awayStartedAt: $awayStartedAt, ')
+          ..write('awayCapAt: $awayCapAt, ')
+          ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('strict: $strict')
           ..write(')'))
         .toString();
   }
@@ -3281,6 +3739,13 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
     pausedAccumMs,
     focusMsCompleted,
     phasesCompleted,
+    pausedTotalMs,
+    interruptions,
+    awayMs,
+    awayStartedAt,
+    awayCapAt,
+    lastSeenAt,
+    strict,
   );
   @override
   bool operator ==(Object other) =>
@@ -3295,7 +3760,14 @@ class FocusStateRow extends DataClass implements Insertable<FocusStateRow> {
           other.pausedAt == this.pausedAt &&
           other.pausedAccumMs == this.pausedAccumMs &&
           other.focusMsCompleted == this.focusMsCompleted &&
-          other.phasesCompleted == this.phasesCompleted);
+          other.phasesCompleted == this.phasesCompleted &&
+          other.pausedTotalMs == this.pausedTotalMs &&
+          other.interruptions == this.interruptions &&
+          other.awayMs == this.awayMs &&
+          other.awayStartedAt == this.awayStartedAt &&
+          other.awayCapAt == this.awayCapAt &&
+          other.lastSeenAt == this.lastSeenAt &&
+          other.strict == this.strict);
 }
 
 class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
@@ -3309,6 +3781,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
   final Value<int> pausedAccumMs;
   final Value<int> focusMsCompleted;
   final Value<int> phasesCompleted;
+  final Value<int> pausedTotalMs;
+  final Value<int> interruptions;
+  final Value<int> awayMs;
+  final Value<int?> awayStartedAt;
+  final Value<int?> awayCapAt;
+  final Value<int?> lastSeenAt;
+  final Value<bool> strict;
   const FocusStatesCompanion({
     this.id = const Value.absent(),
     this.sessionId = const Value.absent(),
@@ -3320,6 +3799,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
     this.pausedAccumMs = const Value.absent(),
     this.focusMsCompleted = const Value.absent(),
     this.phasesCompleted = const Value.absent(),
+    this.pausedTotalMs = const Value.absent(),
+    this.interruptions = const Value.absent(),
+    this.awayMs = const Value.absent(),
+    this.awayStartedAt = const Value.absent(),
+    this.awayCapAt = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+    this.strict = const Value.absent(),
   });
   FocusStatesCompanion.insert({
     this.id = const Value.absent(),
@@ -3332,6 +3818,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
     this.pausedAccumMs = const Value.absent(),
     this.focusMsCompleted = const Value.absent(),
     this.phasesCompleted = const Value.absent(),
+    this.pausedTotalMs = const Value.absent(),
+    this.interruptions = const Value.absent(),
+    this.awayMs = const Value.absent(),
+    this.awayStartedAt = const Value.absent(),
+    this.awayCapAt = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+    this.strict = const Value.absent(),
   }) : sessionId = Value(sessionId),
        phase = Value(phase),
        focusIndex = Value(focusIndex),
@@ -3347,6 +3840,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
     Expression<int>? pausedAccumMs,
     Expression<int>? focusMsCompleted,
     Expression<int>? phasesCompleted,
+    Expression<int>? pausedTotalMs,
+    Expression<int>? interruptions,
+    Expression<int>? awayMs,
+    Expression<int>? awayStartedAt,
+    Expression<int>? awayCapAt,
+    Expression<int>? lastSeenAt,
+    Expression<bool>? strict,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3359,6 +3859,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
       if (pausedAccumMs != null) 'paused_accum_ms': pausedAccumMs,
       if (focusMsCompleted != null) 'focus_ms_completed': focusMsCompleted,
       if (phasesCompleted != null) 'phases_completed': phasesCompleted,
+      if (pausedTotalMs != null) 'paused_total_ms': pausedTotalMs,
+      if (interruptions != null) 'interruptions': interruptions,
+      if (awayMs != null) 'away_ms': awayMs,
+      if (awayStartedAt != null) 'away_started_at': awayStartedAt,
+      if (awayCapAt != null) 'away_cap_at': awayCapAt,
+      if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+      if (strict != null) 'strict': strict,
     });
   }
 
@@ -3373,6 +3880,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
     Value<int>? pausedAccumMs,
     Value<int>? focusMsCompleted,
     Value<int>? phasesCompleted,
+    Value<int>? pausedTotalMs,
+    Value<int>? interruptions,
+    Value<int>? awayMs,
+    Value<int?>? awayStartedAt,
+    Value<int?>? awayCapAt,
+    Value<int?>? lastSeenAt,
+    Value<bool>? strict,
   }) {
     return FocusStatesCompanion(
       id: id ?? this.id,
@@ -3385,6 +3899,13 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
       pausedAccumMs: pausedAccumMs ?? this.pausedAccumMs,
       focusMsCompleted: focusMsCompleted ?? this.focusMsCompleted,
       phasesCompleted: phasesCompleted ?? this.phasesCompleted,
+      pausedTotalMs: pausedTotalMs ?? this.pausedTotalMs,
+      interruptions: interruptions ?? this.interruptions,
+      awayMs: awayMs ?? this.awayMs,
+      awayStartedAt: awayStartedAt ?? this.awayStartedAt,
+      awayCapAt: awayCapAt ?? this.awayCapAt,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      strict: strict ?? this.strict,
     );
   }
 
@@ -3421,6 +3942,27 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
     if (phasesCompleted.present) {
       map['phases_completed'] = Variable<int>(phasesCompleted.value);
     }
+    if (pausedTotalMs.present) {
+      map['paused_total_ms'] = Variable<int>(pausedTotalMs.value);
+    }
+    if (interruptions.present) {
+      map['interruptions'] = Variable<int>(interruptions.value);
+    }
+    if (awayMs.present) {
+      map['away_ms'] = Variable<int>(awayMs.value);
+    }
+    if (awayStartedAt.present) {
+      map['away_started_at'] = Variable<int>(awayStartedAt.value);
+    }
+    if (awayCapAt.present) {
+      map['away_cap_at'] = Variable<int>(awayCapAt.value);
+    }
+    if (lastSeenAt.present) {
+      map['last_seen_at'] = Variable<int>(lastSeenAt.value);
+    }
+    if (strict.present) {
+      map['strict'] = Variable<bool>(strict.value);
+    }
     return map;
   }
 
@@ -3436,7 +3978,14 @@ class FocusStatesCompanion extends UpdateCompanion<FocusStateRow> {
           ..write('pausedAt: $pausedAt, ')
           ..write('pausedAccumMs: $pausedAccumMs, ')
           ..write('focusMsCompleted: $focusMsCompleted, ')
-          ..write('phasesCompleted: $phasesCompleted')
+          ..write('phasesCompleted: $phasesCompleted, ')
+          ..write('pausedTotalMs: $pausedTotalMs, ')
+          ..write('interruptions: $interruptions, ')
+          ..write('awayMs: $awayMs, ')
+          ..write('awayStartedAt: $awayStartedAt, ')
+          ..write('awayCapAt: $awayCapAt, ')
+          ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('strict: $strict')
           ..write(')'))
         .toString();
   }
@@ -5964,6 +6513,10 @@ typedef $$FocusSessionsTableCreateCompanionBuilder =
       Value<bool> endedEarly,
       Value<String?> linkedTaskId,
       Value<String?> linkedOccurrenceDate,
+      Value<int> pausedMs,
+      Value<int> awayMs,
+      Value<int> interruptions,
+      Value<String?> distractions,
       Value<int> rowid,
     });
 typedef $$FocusSessionsTableUpdateCompanionBuilder =
@@ -5980,6 +6533,10 @@ typedef $$FocusSessionsTableUpdateCompanionBuilder =
       Value<bool> endedEarly,
       Value<String?> linkedTaskId,
       Value<String?> linkedOccurrenceDate,
+      Value<int> pausedMs,
+      Value<int> awayMs,
+      Value<int> interruptions,
+      Value<String?> distractions,
       Value<int> rowid,
     });
 
@@ -6049,6 +6606,26 @@ class $$FocusSessionsTableFilterComposer
 
   ColumnFilters<String> get linkedOccurrenceDate => $composableBuilder(
     column: $table.linkedOccurrenceDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pausedMs => $composableBuilder(
+    column: $table.pausedMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get awayMs => $composableBuilder(
+    column: $table.awayMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get distractions => $composableBuilder(
+    column: $table.distractions,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6121,6 +6698,26 @@ class $$FocusSessionsTableOrderingComposer
     column: $table.linkedOccurrenceDate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get pausedMs => $composableBuilder(
+    column: $table.pausedMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get awayMs => $composableBuilder(
+    column: $table.awayMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get distractions => $composableBuilder(
+    column: $table.distractions,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$FocusSessionsTableAnnotationComposer
@@ -6183,6 +6780,22 @@ class $$FocusSessionsTableAnnotationComposer
     column: $table.linkedOccurrenceDate,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get pausedMs =>
+      $composableBuilder(column: $table.pausedMs, builder: (column) => column);
+
+  GeneratedColumn<int> get awayMs =>
+      $composableBuilder(column: $table.awayMs, builder: (column) => column);
+
+  GeneratedColumn<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get distractions => $composableBuilder(
+    column: $table.distractions,
+    builder: (column) => column,
+  );
 }
 
 class $$FocusSessionsTableTableManager
@@ -6228,6 +6841,10 @@ class $$FocusSessionsTableTableManager
                 Value<bool> endedEarly = const Value.absent(),
                 Value<String?> linkedTaskId = const Value.absent(),
                 Value<String?> linkedOccurrenceDate = const Value.absent(),
+                Value<int> pausedMs = const Value.absent(),
+                Value<int> awayMs = const Value.absent(),
+                Value<int> interruptions = const Value.absent(),
+                Value<String?> distractions = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => FocusSessionsCompanion(
                 id: id,
@@ -6242,6 +6859,10 @@ class $$FocusSessionsTableTableManager
                 endedEarly: endedEarly,
                 linkedTaskId: linkedTaskId,
                 linkedOccurrenceDate: linkedOccurrenceDate,
+                pausedMs: pausedMs,
+                awayMs: awayMs,
+                interruptions: interruptions,
+                distractions: distractions,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6258,6 +6879,10 @@ class $$FocusSessionsTableTableManager
                 Value<bool> endedEarly = const Value.absent(),
                 Value<String?> linkedTaskId = const Value.absent(),
                 Value<String?> linkedOccurrenceDate = const Value.absent(),
+                Value<int> pausedMs = const Value.absent(),
+                Value<int> awayMs = const Value.absent(),
+                Value<int> interruptions = const Value.absent(),
+                Value<String?> distractions = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => FocusSessionsCompanion.insert(
                 id: id,
@@ -6272,6 +6897,10 @@ class $$FocusSessionsTableTableManager
                 endedEarly: endedEarly,
                 linkedTaskId: linkedTaskId,
                 linkedOccurrenceDate: linkedOccurrenceDate,
+                pausedMs: pausedMs,
+                awayMs: awayMs,
+                interruptions: interruptions,
+                distractions: distractions,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6320,6 +6949,13 @@ typedef $$FocusStatesTableCreateCompanionBuilder =
       Value<int> pausedAccumMs,
       Value<int> focusMsCompleted,
       Value<int> phasesCompleted,
+      Value<int> pausedTotalMs,
+      Value<int> interruptions,
+      Value<int> awayMs,
+      Value<int?> awayStartedAt,
+      Value<int?> awayCapAt,
+      Value<int?> lastSeenAt,
+      Value<bool> strict,
     });
 typedef $$FocusStatesTableUpdateCompanionBuilder =
     FocusStatesCompanion Function({
@@ -6333,6 +6969,13 @@ typedef $$FocusStatesTableUpdateCompanionBuilder =
       Value<int> pausedAccumMs,
       Value<int> focusMsCompleted,
       Value<int> phasesCompleted,
+      Value<int> pausedTotalMs,
+      Value<int> interruptions,
+      Value<int> awayMs,
+      Value<int?> awayStartedAt,
+      Value<int?> awayCapAt,
+      Value<int?> lastSeenAt,
+      Value<bool> strict,
     });
 
 class $$FocusStatesTableFilterComposer
@@ -6391,6 +7034,41 @@ class $$FocusStatesTableFilterComposer
 
   ColumnFilters<int> get phasesCompleted => $composableBuilder(
     column: $table.phasesCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pausedTotalMs => $composableBuilder(
+    column: $table.pausedTotalMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get awayMs => $composableBuilder(
+    column: $table.awayMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get awayStartedAt => $composableBuilder(
+    column: $table.awayStartedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get awayCapAt => $composableBuilder(
+    column: $table.awayCapAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get strict => $composableBuilder(
+    column: $table.strict,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6453,6 +7131,41 @@ class $$FocusStatesTableOrderingComposer
     column: $table.phasesCompleted,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get pausedTotalMs => $composableBuilder(
+    column: $table.pausedTotalMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get awayMs => $composableBuilder(
+    column: $table.awayMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get awayStartedAt => $composableBuilder(
+    column: $table.awayStartedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get awayCapAt => $composableBuilder(
+    column: $table.awayCapAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get strict => $composableBuilder(
+    column: $table.strict,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$FocusStatesTableAnnotationComposer
@@ -6505,6 +7218,35 @@ class $$FocusStatesTableAnnotationComposer
     column: $table.phasesCompleted,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get pausedTotalMs => $composableBuilder(
+    column: $table.pausedTotalMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get interruptions => $composableBuilder(
+    column: $table.interruptions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get awayMs =>
+      $composableBuilder(column: $table.awayMs, builder: (column) => column);
+
+  GeneratedColumn<int> get awayStartedAt => $composableBuilder(
+    column: $table.awayStartedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get awayCapAt =>
+      $composableBuilder(column: $table.awayCapAt, builder: (column) => column);
+
+  GeneratedColumn<int> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get strict =>
+      $composableBuilder(column: $table.strict, builder: (column) => column);
 }
 
 class $$FocusStatesTableTableManager
@@ -6548,6 +7290,13 @@ class $$FocusStatesTableTableManager
                 Value<int> pausedAccumMs = const Value.absent(),
                 Value<int> focusMsCompleted = const Value.absent(),
                 Value<int> phasesCompleted = const Value.absent(),
+                Value<int> pausedTotalMs = const Value.absent(),
+                Value<int> interruptions = const Value.absent(),
+                Value<int> awayMs = const Value.absent(),
+                Value<int?> awayStartedAt = const Value.absent(),
+                Value<int?> awayCapAt = const Value.absent(),
+                Value<int?> lastSeenAt = const Value.absent(),
+                Value<bool> strict = const Value.absent(),
               }) => FocusStatesCompanion(
                 id: id,
                 sessionId: sessionId,
@@ -6559,6 +7308,13 @@ class $$FocusStatesTableTableManager
                 pausedAccumMs: pausedAccumMs,
                 focusMsCompleted: focusMsCompleted,
                 phasesCompleted: phasesCompleted,
+                pausedTotalMs: pausedTotalMs,
+                interruptions: interruptions,
+                awayMs: awayMs,
+                awayStartedAt: awayStartedAt,
+                awayCapAt: awayCapAt,
+                lastSeenAt: lastSeenAt,
+                strict: strict,
               ),
           createCompanionCallback:
               ({
@@ -6572,6 +7328,13 @@ class $$FocusStatesTableTableManager
                 Value<int> pausedAccumMs = const Value.absent(),
                 Value<int> focusMsCompleted = const Value.absent(),
                 Value<int> phasesCompleted = const Value.absent(),
+                Value<int> pausedTotalMs = const Value.absent(),
+                Value<int> interruptions = const Value.absent(),
+                Value<int> awayMs = const Value.absent(),
+                Value<int?> awayStartedAt = const Value.absent(),
+                Value<int?> awayCapAt = const Value.absent(),
+                Value<int?> lastSeenAt = const Value.absent(),
+                Value<bool> strict = const Value.absent(),
               }) => FocusStatesCompanion.insert(
                 id: id,
                 sessionId: sessionId,
@@ -6583,6 +7346,13 @@ class $$FocusStatesTableTableManager
                 pausedAccumMs: pausedAccumMs,
                 focusMsCompleted: focusMsCompleted,
                 phasesCompleted: phasesCompleted,
+                pausedTotalMs: pausedTotalMs,
+                interruptions: interruptions,
+                awayMs: awayMs,
+                awayStartedAt: awayStartedAt,
+                awayCapAt: awayCapAt,
+                lastSeenAt: lastSeenAt,
+                strict: strict,
               ),
           withReferenceMapper: (p0) => p0
               .map(

@@ -88,10 +88,37 @@ export function skipOrDelete(o: Occurrence) {
     TasksRepository.setSkipped(o, skipped);
     toast(skipped ? 'Skipped this time' : 'Restored', { label: 'Undo', run: () => TasksRepository.setSkipped(o, !skipped) });
   } else {
-    TasksRepository.delete(o);
-    toast('Task deleted', { label: 'Undo', run: () => TasksRepository.restore(o.task) });
+    void deleteOccurrence(o);
   }
 }
+
+/**
+ * Google Calendar delete: recurring tasks ask "This / This and following /
+ * All"; then it's deleted at once with an Undo toast (no extra confirm).
+ * Resolves false if the user cancelled.
+ */
+export async function deleteOccurrence(o: Occurrence): Promise<boolean> {
+  let scope: EditScope = 'all';
+  if (isRecurring(o.task)) {
+    const s = await askScope('Delete recurring task');
+    if (!s) return false;
+    scope = s;
+  }
+  const undo = TasksRepository.delete(o, scope);
+  Feedback.selection();
+  const message =
+    scope === 'thisOne' && isRecurring(o.task) ? 'This task deleted' : scope === 'thisAndFollowing' && isRecurring(o.task) ? 'This and following tasks deleted' : 'Task moved to Trash';
+  toast(message, { label: 'Undo', run: undo });
+  return true;
+}
+
+/** Quick focus lengths (Regain-style). */
+export const focusDurations = [15, 25, 45, 60];
+
+/** "Focus on this task" sheet: one global host, opened from any screen. */
+export const useFocusPick = create<{ occurrence: Occurrence | null }>(() => ({ occurrence: null }));
+export const focusOnTask = (o: Occurrence) => useFocusPick.setState({ occurrence: o });
+export const closeFocusPick = () => useFocusPick.setState({ occurrence: null });
 
 export async function rescheduleOccurrence(o: Occurrence, date: Day, startMinute: number) {
   let scope: EditScope = 'thisOne';

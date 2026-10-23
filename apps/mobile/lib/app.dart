@@ -32,9 +32,11 @@ class _PooraAppState extends ConsumerState<PooraApp>
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     ref.read(notificationServiceProvider).onAction = _onNotificationAction;
     // Interrupted focus sessions are checked when the splash finishes.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => unawaited(ref.read(reminderSchedulerProvider).reschedule()),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(ref.read(reminderSchedulerProvider).reschedule());
+      // Trash keeps deleted tasks for 30 days (like Google Calendar).
+      unawaited(ref.read(tasksRepositoryProvider).purgeOldTrash());
+    });
   }
 
   @override

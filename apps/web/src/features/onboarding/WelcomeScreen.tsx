@@ -2,19 +2,46 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { AppInfo } from '../../core/appInfo';
 import { updateSettings } from '../../core/hooks';
+import { db } from '../../core/db/store';
 import { Feedback } from '../../core/platform/feedback';
+import { Notify } from '../../core/platform/notifications';
 import { T } from '../../core/theme/tokens';
 import { Icon } from '../../core/widgets/Icon';
 import { CompletionRing, Mascot, PooraMark, Wordmark } from '../../core/widgets/widgets';
 
-/** First-run welcome: meaning, Focus, Finish, and a name for "Hi, …". */
+/** The notifications step — Skip lands here, never past it. */
+const NOTIF_PAGE = 3;
+
+/** null = not asked yet; true/false = the answer (or what the browser already decided). */
+function initialNotif(): boolean | null {
+  const p = Notify.permission();
+  return p === 'granted' ? true : p === 'denied' || p === 'unsupported' ? false : null;
+}
+
+/** First-run welcome: meaning, Focus, Finish, notifications, and a name for "Hi, …". */
 export function WelcomeScreen() {
   const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [name, setName] = useState('');
   const [mark, setMark] = useState(0);
-  const count = 4;
+  const [notif, setNotif] = useState<boolean | null>(initialNotif);
+  const count = 5;
   const last = page === count - 1;
+  const asking = page === NOTIF_PAGE && notif == null;
+
+  const askNotifications = async () => {
+    const granted = await Notify.request();
+    db().setSettings({ asked_reminder_permissions: 'true' });
+    setNotif(granted);
+    if (granted) Feedback.success();
+    setPage(NOTIF_PAGE + 1);
+  };
+
+  const declineNotifications = () => {
+    db().setSettings({ asked_reminder_permissions: 'true' });
+    setNotif(false);
+    setPage(NOTIF_PAGE + 1);
+  };
 
   useEffect(() => {
     let raf = 0;
@@ -54,7 +81,7 @@ export function WelcomeScreen() {
         </div>
       ),
       title: 'Focus fully.',
-      body: `A quiet timer with nothing else on screen. Your reminders wait until you’re done — on Android, ${AppInfo.name} can silence your phone too.`,
+      body: `A quiet timer with nothing else on screen. Your reminders wait until you’re done — on Android, ${AppInfo.name} can silence your phone and block distracting apps. No leaderboards, no groups. ${AppInfo.motto}`,
     },
     {
       hero: (
@@ -76,15 +103,17 @@ export function WelcomeScreen() {
       <div className="row">
         <Wordmark size={26} />
         <span className="spacer" />
-        {!last && (
-          <button type="button" className="text-btn" onClick={() => setPage(count - 1)}>
+        {page < NOTIF_PAGE && (
+          <button type="button" className="text-btn" onClick={() => setPage(NOTIF_PAGE)}>
             Skip
           </button>
         )}
       </div>
 
       <div key={page} style={{ flex: 1, paddingTop: 32, animation: 'page-in 360ms var(--ease)' }}>
-        {page < 3 ? (
+        {page === NOTIF_PAGE ? (
+          <NotificationsStep granted={notif} />
+        ) : page < 3 ? (
           <>
             <div style={{ height: 260, display: 'grid', placeItems: 'center' }}>{pages[page].hero}</div>
             <h1 className="display d40" style={{ marginTop: 32 }}>{pages[page].title}</h1>
@@ -119,10 +148,49 @@ export function WelcomeScreen() {
           />
         ))}
         <span className="spacer" />
-        <button type="button" className="btn coral" onClick={last ? finish : () => setPage(page + 1)}>
-          {last ? 'Get started' : 'Next'}
+        {asking && (
+          <button type="button" className="text-btn" style={{ marginRight: 8 }} onClick={declineNotifications}>
+            Not now
+          </button>
+        )}
+        <button type="button" className="btn coral" onClick={last ? finish : asking ? askNotifications : () => setPage(page + 1)}>
+          {last ? 'Get started' : asking ? 'Allow' : 'Next'}
         </button>
       </div>
     </div>
+  );
+}
+
+/** Ask for notifications first; if declined, only Settings can turn them on. */
+function NotificationsStep({ granted }: { granted: boolean | null }) {
+  const unsupported = Notify.permission() === 'unsupported';
+  const [title, body] =
+    granted === true
+      ? ['You’re all set.', 'Reminders will arrive on time — and stay quiet while you focus.']
+      : unsupported
+        ? ['No notifications here.', 'This browser can’t show notifications. Reminders still appear in the app — or use the Android app.']
+        : granted === false
+          ? ['No problem.', `${AppInfo.name} won’t ask again, so reminders won’t appear for now.`]
+          : ['Stay on time.', 'Allow notifications so task reminders ring at the right minute, with Poora’s own tone. They’re held while you focus and delivered together after.'];
+  return (
+    <>
+      <div style={{ height: 260, display: 'grid', placeItems: 'center' }}>
+        <div className={`panel ${granted === false ? 'peri' : 'coral'}`} style={{ width: 160, height: 160, borderRadius: 48, display: 'grid', placeItems: 'center' }}>
+          <Icon name={granted === false ? 'alarmOff' : 'bell'} size={72} />
+        </div>
+      </div>
+      <h1 className="display d40" style={{ marginTop: 32 }}>{title}</h1>
+      <p className="muted" style={{ fontSize: 16, lineHeight: 1.5, marginTop: 12 }}>{body}</p>
+      {granted === false && !unsupported && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <p className="caps-label" style={{ margin: '0 0 8px' }}>You can turn this on any time</p>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>
+            • In {AppInfo.name}: Settings → Notifications
+            <br />• In your browser: click the lock / site icon next to the address bar → Notifications → Allow
+            <br />• Installed app: your system’s Settings → Notifications → {AppInfo.name}
+          </p>
+        </div>
+      )}
+    </>
   );
 }

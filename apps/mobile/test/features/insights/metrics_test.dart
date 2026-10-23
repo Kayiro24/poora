@@ -26,7 +26,7 @@ Task _task(String id, String title, RepeatRule rule, {int? at, int? dur, String?
       Task(
         id: id,
         title: title,
-        color: 0xFFF2705E,
+        color: 0xFFEF7867,
         startDate: start ?? _start,
         seriesId: id,
         createdAt: _created,
@@ -176,6 +176,25 @@ void main() {
       'Health:19',
       'Untagged:1',
     ]);
+  });
+
+  test('outcomes: completed, not completed and deleted', () {
+    final deletedRecord = OccurrenceRecord(
+      id: 'del',
+      taskId: 'A',
+      occurrenceDate: Days.ymd(2026, 10, 3),
+      status: RecordStatus.deleted,
+    );
+    final trashed = [
+      snapshot.tasks.first.copyWith(id: 'gone', deletedAt: DateTime(2026, 10, 20, 9)),
+      snapshot.tasks.first.copyWith(id: 'old', deletedAt: DateTime(2026, 9)),
+    ];
+    final o = Metrics.outcomes(DateRange(_start, _end), occ, [...snapshot.records, deletedRecord], trashed);
+    expect(o.completed, 36 + 9); // fixed + quota completions
+    expect(o.notCompleted, 4);
+    expect(o.deletedOccurrences, 1);
+    expect(o.deletedTasks, 1); // only the one deleted inside the range
+    expect(o.total, 36 + 9 + 4 + 2);
   });
 
   test('focus stats', () {

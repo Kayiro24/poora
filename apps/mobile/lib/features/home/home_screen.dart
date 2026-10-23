@@ -10,6 +10,7 @@ import 'package:poora/core/time/format.dart';
 import 'package:poora/core/widgets/accent_panel.dart';
 import 'package:poora/core/widgets/arrow_circle_button.dart';
 import 'package:poora/core/widgets/common.dart';
+import 'package:poora/core/widgets/coral_fab.dart';
 import 'package:poora/core/widgets/day_rate_pills.dart';
 import 'package:poora/core/widgets/floating_nav_bar.dart';
 import 'package:poora/core/widgets/mascot.dart';
@@ -49,6 +50,22 @@ class HomeScreen extends ConsumerWidget {
     final isToday = Days.same(day, today);
 
     return Scaffold(
+      // Add a task: jump to the calendar on this day with a new task open.
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(bottom: FloatingNavBar.reservedHeight(context) - 16),
+        child: CoralFab(
+          onPressed: () {
+            ref.read(tasksViewProvider.notifier)
+              ..setView(TaskView.day)
+              ..select(day);
+            context.go(Routes.tasks);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final ctx = rootNavigatorKey.currentContext;
+              if (ctx != null) openEditor(ctx, date: day);
+            });
+          },
+        ),
+      ),
       body: SafeArea(
         bottom: false,
         child: ListView(

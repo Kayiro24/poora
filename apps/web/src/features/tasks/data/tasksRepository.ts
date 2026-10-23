@@ -92,17 +92,41 @@ export const TasksRepository = {
     TasksRepository.save(edited, o, scope);
   },
 
-  delete(o: Occurrence, scope: EditScope = 'all') {
+  /**
+   * Google Calendar delete: a one-off or "All tasks" goes to Trash; "This task"
+   * removes one occurrence; "This and following" ends the series the day
+   * before. Returns an undo for the snackbar.
+   */
+  delete(o: Occurrence, scope: EditScope = 'all'): () => void {
     const t = o.task;
-    if (!isRecurring(t) || scope === 'all') return db().softDeleteTask(t.id, now());
-    if (scope === 'thisOne') return db().upsertRecord({ ...recordFor(o), status: 'deleted', completedAt: null });
-    if (o.originalDate === t.startDate) return db().softDeleteTask(t.id, now());
+    if (!isRecurring(t) || scope === 'all' || (scope === 'thisAndFollowing' && o.originalDate === t.startDate)) {
+      db().softDeleteTask(t.id, now());
+      return () => db().restoreTask(t.id, now());
+    }
+    if (scope === 'thisOne') {
+      const previous = o.record ?? db().occurrenceRecords.find((r) => r.taskId === t.id && r.occurrenceDate === o.originalDate) ?? null;
+      db().upsertRecord({ ...recordFor(o), status: 'deleted', completedAt: null });
+      return () => (previous ? db().upsertRecord(previous) : db().deleteRecord(t.id, o.originalDate));
+    }
     db().upsertTask({ ...t, endsOn: Days.add(o.originalDate, -1), endsAfterCount: null, updatedAt: now() });
+    return () => db().upsertTask({ ...t, updatedAt: now() });
   },
 
-  /** Restores a soft-deleted one-off (snackbar undo). */
-  restore(t: Task) {
-    db().upsertTask({ ...t, deletedAt: null, updatedAt: now() });
+  // --- Trash (Google Calendar keeps deleted events for 30 days) ---------------
+
+  trashDays: 30,
+
+  restore: (taskId: string) => db().restoreTask(taskId, now()),
+
+  deleteForever: (taskId: string) => db().hardDeleteTasks([taskId]),
+
+  emptyTrash: () => db().hardDeleteTasks(db().tasks.filter((t) => t.deletedAt != null).map((t) => t.id)),
+
+  /** Drops trash older than `trashDays`; run at launch. */
+  purgeOldTrash(at = now()) {
+    const before = at - TasksRepository.trashDays * 86_400_000;
+    const old = db().tasks.filter((t) => t.deletedAt != null && t.deletedAt < before).map((t) => t.id);
+    if (old.length) db().hardDeleteTasks(old);
   },
 };
 

@@ -16,7 +16,7 @@ Task task({
   final base = Task(
     id: id,
     title: 'Task $id',
-    color: 0xFFF2705E,
+    color: 0xFFEF7867,
     startDate: start ?? Days.ymd(2026, 10, 19),
     seriesId: id,
     createdAt: _now,

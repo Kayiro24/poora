@@ -65,9 +65,13 @@ class InsightsRepository {
     required this.generator,
     required this.today,
     required this.mondayFirst,
+    this.trashed = const [],
   });
 
   final TaskSnapshot snapshot;
+
+  /// Tasks in Trash (soft-deleted), for deletion analytics.
+  final List<Task> trashed;
   final List<FocusSessionRecord> sessions;
   final OccurrenceGenerator generator;
   final DateTime today;
@@ -261,6 +265,8 @@ class InsightsRepository {
   double focusMinutesOn(DateTime day) =>
       Metrics.focus(sessionsIn(DateRange.day(day))).totalMinutes;
 
+  TaskOutcomes outcomes(DateRange r) => Metrics.outcomes(r, occurrences(r), snapshot.records, trashed);
+
   String taskTitle(String taskId) => snapshot.taskById(taskId)?.title ?? 'Deleted task';
 }
 
@@ -271,5 +277,6 @@ final insightsRepositoryProvider = Provider<InsightsRepository>((ref) {
     generator: ref.watch(generatorProvider),
     today: ref.watch(todayProvider),
     mondayFirst: ref.watch(settingsProvider.select((s) => s.mondayFirst)),
+    trashed: ref.watch(trashedTasksProvider).value ?? const [],
   );
 });

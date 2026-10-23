@@ -1,6 +1,6 @@
 import { Days, Range, type DateRange, type Day } from '../../../core/time/days';
 import type { FocusConfig } from '../../focus/domain/timerEngine';
-import { isQuota, Occ, type Occurrence, type OccurrenceStatus, type Task } from '../../tasks/domain/models';
+import { isQuota, Occ, type Occurrence, type OccurrenceRecord, type OccurrenceStatus, type Task } from '../../tasks/domain/models';
 
 /** A finished focus cycle (`focus_sessions`). */
 export interface FocusSessionRecord {
@@ -13,7 +13,28 @@ export interface FocusSessionRecord {
   endedEarly: boolean;
   linkedTaskId: string | null;
   linkedOccurrenceDate: Day | null;
+  pausedMs: number;
+  awayMs: number;
+  interruptions: number;
+  /** Package → ms in apps chosen as distracting (Android only). */
+  distractions: Record<string, number>;
 }
+
+/** Completed / not completed / deleted for a period (Google Calendar-style deletes). */
+export interface TaskOutcomes {
+  completed: number;
+  /** Past occurrences that weren't done (missed). */
+  notCompleted: number;
+  /** Single occurrences deleted ("This task") on days in the period. */
+  deletedOccurrences: number;
+  /** Whole tasks/series moved to Trash during the period. */
+  deletedTasks: number;
+}
+
+export const Outcomes = {
+  deleted: (o: TaskOutcomes) => o.deletedOccurrences + o.deletedTasks,
+  total: (o: TaskOutcomes) => o.completed + o.notCompleted + o.deletedOccurrences + o.deletedTasks,
+};
 
 /** Tier thresholds (§4.11). Tune here only. */
 export const CompletionTiers = {
@@ -203,6 +224,18 @@ export const Metrics = {
       m.set(tag, (m.get(tag) ?? 0) + 1);
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  },
+
+  outcomes(range: DateRange, occ: Iterable<Occurrence>, records: Iterable<OccurrenceRecord>, trashed: Iterable<Task>): TaskOutcomes {
+    let completed = 0, notCompleted = 0, deletedOccurrences = 0, deletedTasks = 0;
+    for (const o of occ) {
+      if (!Range.contains(range, o.date)) continue;
+      if (o.status === 'done') completed++;
+      if (o.status === 'missed') notCompleted++;
+    }
+    for (const r of records) if (r.status === 'deleted' && Range.contains(range, r.overrideDate ?? r.occurrenceDate)) deletedOccurrences++;
+    for (const t of trashed) if (t.deletedAt != null && Range.contains(range, Days.of(new Date(t.deletedAt)))) deletedTasks++;
+    return { completed, notCompleted, deletedOccurrences, deletedTasks };
   },
 
   focus(sessions: Iterable<FocusSessionRecord>): FocusStats {

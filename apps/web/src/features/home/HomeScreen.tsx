@@ -7,7 +7,7 @@ import { Days, Range, type Day } from '../../core/time/days';
 import { Fmt, monthLong, weekdayShort } from '../../core/time/format';
 import { DayRatePills } from '../../core/widgets/DayRatePills';
 import { Icon } from '../../core/widgets/Icon';
-import { ArrowButton, EmptyState, IconButton, Mascot, MonoBadge, OptionSheet, Pill } from '../../core/widgets/widgets';
+import { ArrowButton, CoralFab, EmptyState, IconButton, Mascot, MonoBadge, OptionSheet, Pill } from '../../core/widgets/widgets';
 import { useFocus } from '../focus/application/focusController';
 import { startFocus } from '../focus/ui/FocusScreen';
 import { useInsights } from '../insights/data/insightsRepository';
@@ -62,6 +62,16 @@ export function HomeScreen() {
         <QuickStart />
         <ThisWeek day={day} />
       </div>
+      {/* Add a task on the day shown: opens Tasks on that day with the editor. */}
+      <CoralFab
+        label="Add task"
+        onClick={() => {
+          TasksView.setView('day');
+          TasksView.select(day);
+          navigate('/tasks');
+          openEditor({ date: day });
+        }}
+      />
     </div>
   );
 }

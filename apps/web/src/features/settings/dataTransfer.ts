@@ -1,5 +1,6 @@
 import { AppInfo } from '../../core/appInfo';
-import { db, emptyTables, type Tables } from '../../core/db/store';
+import { db, emptyTables, focusSessionDefaults, type FocusSessionRow, type Tables, type TaskRow } from '../../core/db/store';
+import { TaskColors } from '../../core/theme/tokens';
 
 /** Same JSON format as the app's DataTransfer (format 1) — files move between phone and web. */
 const FORMAT = 1;
@@ -50,10 +51,12 @@ export function importJson(text: string) {
   for (const e of list<{ key: string; value: string }>('settings')) if (typeof e?.key === 'string') settings[e.key] = String(e.value);
   const tables: Tables = {
     ...emptyTables,
-    tasks: list('tasks'),
+    // Older files may use the palette before its shade shift.
+    tasks: list<TaskRow>('tasks').map((t) => ({ ...t, color: TaskColors.migrate(t.color) })),
     taskReminders: list('taskReminders'),
     occurrenceRecords: list('occurrenceRecords'),
-    focusSessions: list('focusSessions'),
+    // Focus-tracking fields were added to format 1 later; older files lack them.
+    focusSessions: list<FocusSessionRow>('focusSessions').map((f) => ({ ...focusSessionDefaults, ...f })),
     presets: list('presets'),
     settings,
   };

@@ -61,6 +61,7 @@ void main() {
     expect(run.reminders.single.atMinute, 420);
     final s = AppSettings.fromMap(await SettingsDao(db).all());
     expect([s.name, s.chime, s.lastFocus.longEvery, s.onboarded], ['Asha', Chime.softBell, 2, true]);
+    expect(s.distractingApps, ['com.instagram.android', 'com.google.android.youtube']);
 
     final occ = OccurrenceGenerator(mondayFirst: true).generate(
       snapshot: snap,
@@ -73,5 +74,25 @@ void main() {
       occ.any((o) => o.task.title == 'Morning pages' && Days.iso(o.date) == '2026-10-14'),
       isFalse,
     );
+  });
+
+  test('older exports without focus-tracking fields still import', () async {
+    final sessions = (sample['focusSessions']! as List).cast<Map<String, Object?>>();
+    for (final r in sessions) {
+      r..remove('pausedMs')..remove('awayMs')..remove('interruptions')..remove('distractions');
+    }
+    final transfer = DataTransfer(db);
+    await transfer.importJson(jsonEncode(sample));
+    final out = (await transfer.exportMap())['focusSessions']! as List;
+    final first = out.first as Map<String, Object?>;
+    expect([first['pausedMs'], first['awayMs'], first['interruptions'], first['distractions']], [0, 0, 0, null]);
+  });
+
+  test('tasks on the old palette import with today’s shades', () async {
+    final tasks = (sample['tasks']! as List).cast<Map<String, Object?>>();
+    tasks.first['color'] = 0xFFF2705E; // coral before the shade shift
+    await DataTransfer(db).importJson(jsonEncode(sample));
+    final snap = await TasksDao(db).loadSnapshot(includeDeleted: true);
+    expect(snap.tasks.firstWhere((t) => t.id == tasks.first['id']).color, 0xFFEF7867);
   });
 }

@@ -85,6 +85,7 @@ class TimerState {
     this.phaseStartedAt,
     this.pausedAt,
     this.pausedAccumMs = 0,
+    this.pausedTotalMs = 0,
     this.focusMsCompleted = 0,
     this.phasesCompleted = 0,
     this.cycleComplete = false,
@@ -100,6 +101,9 @@ class TimerState {
   final int phaseDurationMs;
   final DateTime? pausedAt;
   final int pausedAccumMs;
+
+  /// Paused time across the whole session (excluding a pause still open).
+  final int pausedTotalMs;
 
   /// Focus time from fully or partially completed earlier focus phases.
   final int focusMsCompleted;
@@ -118,6 +122,7 @@ class TimerState {
     int? phaseDurationMs,
     Object? pausedAt = _keep,
     int? pausedAccumMs,
+    int? pausedTotalMs,
     int? focusMsCompleted,
     int? phasesCompleted,
     bool? cycleComplete,
@@ -130,6 +135,7 @@ class TimerState {
     phaseDurationMs: phaseDurationMs ?? this.phaseDurationMs,
     pausedAt: identical(pausedAt, _keep) ? this.pausedAt : pausedAt as DateTime?,
     pausedAccumMs: pausedAccumMs ?? this.pausedAccumMs,
+    pausedTotalMs: pausedTotalMs ?? this.pausedTotalMs,
     focusMsCompleted: focusMsCompleted ?? this.focusMsCompleted,
     phasesCompleted: phasesCompleted ?? this.phasesCompleted,
     cycleComplete: cycleComplete ?? this.cycleComplete,
@@ -210,15 +216,21 @@ class TimerEngine {
   int focusMsSoFar(TimerState s, DateTime now) =>
       s.focusMsCompleted + (s.isFocus ? elapsedMs(s, now) : 0);
 
+  /// Total paused time so far, including a pause that is still open.
+  int pausedMsSoFar(TimerState s, DateTime now) =>
+      s.pausedTotalMs + (s.pausedAt == null ? 0 : now.difference(s.pausedAt!).inMilliseconds);
+
   TimerState pause(TimerState s, DateTime now) =>
       s.isRunning ? s.copyWith(pausedAt: now) : s;
 
   TimerState resume(TimerState s, DateTime now) {
     final p = s.pausedAt;
     if (p == null) return s;
+    final paused = now.difference(p).inMilliseconds;
     return s.copyWith(
       pausedAt: null,
-      pausedAccumMs: s.pausedAccumMs + now.difference(p).inMilliseconds,
+      pausedAccumMs: s.pausedAccumMs + paused,
+      pausedTotalMs: s.pausedTotalMs + paused,
     );
   }
 
@@ -273,12 +285,16 @@ class TimerEngine {
       focusIndex: index,
       phaseStartedAt: auto ? endedAt : null,
       phaseDurationMs: config.durationMs(phase),
+      pausedTotalMs: s.pausedTotalMs,
       focusMsCompleted: focusMs,
       phasesCompleted: phases,
     );
   }
 
   (FocusPhase, int)? _next(FocusPhase phase, int index) => switch (phase) {
+    // A zero-length long break means "no break": the cycle ends after focus
+    // (used by focus-from-task).
+    FocusPhase.focus when index >= config.longEvery && config.longMin == 0 => null,
     FocusPhase.focus when index >= config.longEvery => (FocusPhase.longBreak, index),
     FocusPhase.focus => (FocusPhase.shortBreak, index),
     FocusPhase.shortBreak => (FocusPhase.focus, index + 1),

@@ -27,7 +27,7 @@ export function DayCell(p: { completion: DayCompletion; isToday: boolean; onTap?
 
   const inner = (
     <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <span className="mono" style={{ fontSize: 13, color: tier === 'beforeFirstUse' ? 'rgba(163,160,154,0.35)' : dim ? T.textSecondary : T.textPrimary }}>
+      <span className="mono" style={{ fontSize: 13, color: tier === 'beforeFirstUse' ? 'rgba(164, 161, 156,0.35)' : dim ? T.textSecondary : T.textPrimary }}>
         {Days.date(c.day)}
       </span>
       {icon === 'half' ? (

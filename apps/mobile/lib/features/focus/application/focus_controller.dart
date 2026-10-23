@@ -6,6 +6,7 @@ import 'package:poora/core/platform/dnd_service.dart';
 import 'package:poora/core/providers.dart';
 import 'package:poora/core/time/date_utils.dart';
 import 'package:poora/features/focus/domain/focus_session.dart';
+import 'package:poora/features/focus/domain/focus_tracker.dart';
 import 'package:poora/features/focus/domain/timer_engine.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 import 'package:uuid/uuid.dart';
@@ -19,6 +20,8 @@ class FocusSession {
     required this.startedAt,
     this.linkedTaskId,
     this.linkedDate,
+    this.tracking = FocusTracking.empty,
+    this.strict = false,
   });
 
   final String id;
@@ -28,13 +31,27 @@ class FocusSession {
   final String? linkedTaskId;
   final DateTime? linkedDate;
 
-  FocusSession withTimer(TimerState t) => FocusSession(
+  /// Interruptions and time away (Regain-style tracking).
+  final FocusTracking tracking;
+
+  /// Strict mode: a started focus phase can't be paused, skipped or ended.
+  final bool strict;
+
+  /// True while strict mode holds: a focus phase has started and isn't over.
+  bool get locked => strict && timer.isFocus && timer.phaseStartedAt != null && !timer.cycleComplete;
+
+  FocusSession withTimer(TimerState t) => _copy(timer: t);
+  FocusSession withTracking(FocusTracking t) => _copy(tracking: t);
+
+  FocusSession _copy({TimerState? timer, FocusTracking? tracking}) => FocusSession(
     id: id,
     config: config,
-    timer: t,
+    timer: timer ?? this.timer,
     startedAt: startedAt,
     linkedTaskId: linkedTaskId,
     linkedDate: linkedDate,
+    tracking: tracking ?? this.tracking,
+    strict: strict,
   );
 }
 
@@ -45,6 +62,11 @@ class FocusSummary {
     required this.endedEarly,
     this.linkedTaskId,
     this.linkedDate,
+    this.pausedMs = 0,
+    this.awayMs = 0,
+    this.interruptions = 0,
+    this.appUsageMs = 0,
+    this.distractions = const {},
   });
 
   final int focusMinutes;
@@ -52,6 +74,13 @@ class FocusSummary {
   final bool endedEarly;
   final String? linkedTaskId;
   final DateTime? linkedDate;
+  final int pausedMs;
+  final int awayMs;
+  final int interruptions;
+  final int appUsageMs;
+
+  /// Package → ms in monitored apps (Android usage access).
+  final Map<String, int> distractions;
 }
 
 /// A session found on launch after the app was killed (§4.3).
@@ -75,8 +104,11 @@ class FocusController extends Notifier<FocusUiState> {
   static const _dndKey = 'dnd_prev_filter';
   static const _pauseDndRestore = Duration(minutes: 5);
 
+  static const _heartbeatEvery = Duration(seconds: 30);
+
   Timer? _phaseTimer;
   Timer? _pauseTimer;
+  Timer? _heartbeat;
   bool _dndRestoredForPause = false;
 
   @override
@@ -84,6 +116,7 @@ class FocusController extends Notifier<FocusUiState> {
     ref.onDispose(() {
       _phaseTimer?.cancel();
       _pauseTimer?.cancel();
+      _heartbeat?.cancel();
     });
     return const FocusUiState();
   }
@@ -122,7 +155,14 @@ class FocusController extends Notifier<FocusUiState> {
       return;
     }
     final eng = engineFor(row.config);
-    final timer = eng.tick(live.timer, _now).state;
+    final now = _now;
+    // Time since the last heartbeat (killed or restarted) counts as away.
+    final tracking = FocusTracker.recover(
+      live.tracking,
+      now,
+      focusPhaseEndsAt: live.timer.isFocus ? eng.phaseEndsAt(live.timer) : null,
+    );
+    final timer = eng.tick(live.timer, now).state;
     final session = FocusSession(
       id: row.id,
       config: row.config,
@@ -130,10 +170,14 @@ class FocusController extends Notifier<FocusUiState> {
       startedAt: row.startedAt,
       linkedTaskId: row.linkedTaskId,
       linkedDate: row.linkedOccurrenceDate,
+      tracking: tracking,
+      strict: live.strict,
     );
     state = FocusUiState(
       recovery: FocusRecovery(session: session, canResume: !timer.cycleComplete),
     );
+    // Strict focus survives a kill or restart: no "close session" way out.
+    if (session.locked) await resumeRecovered();
   }
 
   Future<void> resumeRecovered() async {
@@ -144,6 +188,7 @@ class FocusController extends Notifier<FocusUiState> {
     await _holdReminders();
     await _silence();
     _arm();
+    _startHeartbeat();
   }
 
   Future<void> closeRecovered() async {
@@ -157,6 +202,7 @@ class FocusController extends Notifier<FocusUiState> {
     FocusConfig config, {
     String? linkedTaskId,
     DateTime? linkedDate,
+    bool? strict,
   }) async {
     if (state.session != null) return;
     final now = _now;
@@ -168,6 +214,7 @@ class FocusController extends Notifier<FocusUiState> {
       startedAt: now,
       linkedTaskId: linkedTaskId,
       linkedDate: linkedDate == null ? null : Days.of(linkedDate),
+      strict: strict ?? ref.read(settingsProvider).strictMode,
     );
     state = FocusUiState(session: session);
     await _dao.upsertSession(_record(session, endedAt: null));
@@ -178,12 +225,20 @@ class FocusController extends Notifier<FocusUiState> {
     await _holdReminders();
     await _silence();
     _arm();
+    _startHeartbeat();
   }
+
+  /// Focus straight from a task: one countdown of [minutes], no breaks.
+  Future<void> startForTask({required String taskId, required DateTime date, required int minutes}) => start(
+    FocusConfig(focusMin: minutes, shortMin: 0, longMin: 0, longEvery: 1),
+    linkedTaskId: taskId,
+    linkedDate: date,
+  );
 
   void pause() {
     final s = state.session;
     final eng = engine;
-    if (s == null || eng == null || !s.timer.isRunning) return;
+    if (s == null || eng == null || !s.timer.isRunning || s.locked) return;
     _set(eng.pause(s.timer, _now));
     _phaseTimer?.cancel();
     _pauseTimer?.cancel();
@@ -214,13 +269,17 @@ class FocusController extends Notifier<FocusUiState> {
   Future<void> skip() async {
     final s = state.session;
     final eng = engine;
-    if (s == null || eng == null) return;
+    if (s == null || eng == null || s.locked) return;
     final r = eng.skip(s.timer, _now);
     await _handleEnded(r);
   }
 
-  /// "End session" — always recorded as ended early.
-  Future<void> end() => _finish(endedEarly: true);
+  /// "End session" — always recorded as ended early. Not while strict
+  /// mode holds a focus phase.
+  Future<void> end() async {
+    if (state.session?.locked ?? false) return;
+    await _finish(endedEarly: true);
+  }
 
   void dismissSummary() => state = const FocusUiState();
 
@@ -229,8 +288,10 @@ class FocusController extends Notifier<FocusUiState> {
   Future<void> discard() async {
     _phaseTimer?.cancel();
     _pauseTimer?.cancel();
+    _heartbeat?.cancel();
     _dndRestoredForPause = false;
     await _restoreDnd();
+    await ref.read(guardServiceProvider).clear();
     ref.read(reminderSchedulerProvider).holdUntil = null;
     state = const FocusUiState();
   }
@@ -240,6 +301,10 @@ class FocusController extends Notifier<FocusUiState> {
     final s = state.session;
     final eng = engine;
     if (s == null || eng == null) return;
+    _heartbeat?.cancel();
+    _setTracking(
+      FocusTracker.leave(s.tracking, _now, focusPhaseEndsAt: s.timer.isFocus ? eng.phaseEndsAt(s.timer) : null),
+    );
     final at = eng.phaseEndsAt(s.timer);
     if (at == null) return;
     final notif = ref.read(notificationServiceProvider);
@@ -265,6 +330,11 @@ class FocusController extends Notifier<FocusUiState> {
 
   Future<void> onForeground() async {
     await ref.read(notificationServiceProvider).cancelFocusEnd();
+    final s = state.session;
+    if (s != null) {
+      _setTracking(FocusTracker.returnTo(s.tracking, _now));
+      _startHeartbeat();
+    }
     _onTick();
   }
 
@@ -277,10 +347,42 @@ class FocusController extends Notifier<FocusUiState> {
     unawaited(_persist());
   }
 
+  void _setTracking(FocusTracking t) {
+    final s = state.session;
+    if (s == null) return;
+    state = FocusUiState(session: s.withTracking(t));
+    unawaited(_persist());
+  }
+
+  void _startHeartbeat() {
+    _heartbeat?.cancel();
+    _heartbeat = Timer.periodic(_heartbeatEvery, (_) {
+      final s = state.session;
+      if (s != null) _setTracking(FocusTracker.heartbeat(s.tracking, _now));
+    });
+  }
+
   Future<void> _persist() async {
     final s = state.session;
     if (s == null) return;
-    await _dao.saveLiveState(s.id, s.timer);
+    await _dao.saveLiveState(s.id, s.timer, s.tracking, strict: s.strict);
+    await _syncGuard();
+  }
+
+  /// Arms the Android focus guard for a running focus phase (blocked apps,
+  /// and uninstall protection in strict mode); clears it otherwise. It
+  /// expires on its own at the phase end, even if Poora is killed.
+  Future<void> _syncGuard() async {
+    final guard = ref.read(guardServiceProvider);
+    if (!guard.supported) return;
+    final s = state.session;
+    final end = s == null ? null : engine?.phaseEndsAt(s.timer);
+    final blocked = ref.read(settingsProvider).blockedApps;
+    if (s == null || end == null || !s.timer.isFocus || (!s.strict && blocked.isEmpty)) {
+      await guard.clear();
+      return;
+    }
+    await guard.arm(until: end, strict: s.strict, blocked: blocked);
   }
 
   void _arm() {
@@ -324,17 +426,25 @@ class FocusController extends Notifier<FocusUiState> {
     if (s == null) return;
     _phaseTimer?.cancel();
     _pauseTimer?.cancel();
+    _heartbeat?.cancel();
     final eng = engineFor(s.config);
     final now = _now;
     final focusMs = eng.focusMsSoFar(s.timer, now);
+    final tracking = FocusTracker.finish(s.tracking, now);
+    final watched = ref.read(settingsProvider).distractingApps.toSet();
+    final distractions = await ref.read(usageServiceProvider).usage(from: s.startedAt, to: now, packages: watched);
     final rec = _record(
       s,
       endedAt: now,
       focusMs: focusMs,
       endedEarly: endedEarly,
+      pausedMs: eng.pausedMsSoFar(s.timer, now),
+      tracking: tracking,
+      distractions: distractions,
     );
     await _dao.upsertSession(rec);
     await _dao.clearLiveState();
+    await ref.read(guardServiceProvider).clear();
     await ref.read(notificationServiceProvider).cancelFocusEnd();
     await _restoreDnd();
     await ref.read(reminderSchedulerProvider).releaseHeld();
@@ -350,6 +460,11 @@ class FocusController extends Notifier<FocusUiState> {
               endedEarly: endedEarly,
               linkedTaskId: s.linkedTaskId,
               linkedDate: s.linkedDate,
+              pausedMs: rec.pausedMs,
+              awayMs: rec.awayMs,
+              interruptions: rec.interruptions,
+              appUsageMs: rec.appUsageMs,
+              distractions: distractions,
             )
           : null,
     );
@@ -360,6 +475,9 @@ class FocusController extends Notifier<FocusUiState> {
     required DateTime? endedAt,
     int focusMs = 0,
     bool endedEarly = false,
+    int pausedMs = 0,
+    FocusTracking tracking = FocusTracking.empty,
+    Map<String, int> distractions = const {},
   }) => FocusSessionRecord(
     id: s.id,
     startedAt: s.startedAt,
@@ -370,6 +488,10 @@ class FocusController extends Notifier<FocusUiState> {
     endedEarly: endedEarly,
     linkedTaskId: s.linkedTaskId,
     linkedOccurrenceDate: s.linkedDate,
+    pausedMs: pausedMs,
+    awayMs: tracking.awayMs,
+    interruptions: tracking.interruptions,
+    distractions: distractions,
   );
 
   /// §4.4 step 1: hold every reminder until the projected end of the cycle.

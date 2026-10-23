@@ -3,6 +3,7 @@ import { generatorFor, getSettings, getSnapshot } from '../hooks';
 import { Days, Range } from '../time/days';
 import { Fmt } from '../time/format';
 import { isQuota, Occ, Reminders } from '../../features/tasks/domain/models';
+import { Feedback } from './feedback';
 import { Notify } from './notifications';
 
 /*
@@ -51,6 +52,7 @@ function fire(p: Planned) {
     held.push(p);
     return;
   }
+  Feedback.reminderTone();
   void Notify.show(p.title, p.body, p.id);
 }
 
@@ -75,6 +77,7 @@ export const ReminderScheduler = {
     const due = held.splice(0, held.length);
     if (due.length) {
       const n = due.length;
+      Feedback.reminderTone();
       await Notify.show(`While you focused: ${n} task${n === 1 ? ' was' : 's were'} due`, due.slice(0, 5).map((d) => d.title).join(' · '), 'held');
     }
   },

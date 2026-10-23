@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:poora/app_router.dart';
 import 'package:poora/core/notifications/notification_service.dart';
 import 'package:poora/core/providers.dart';
 import 'package:poora/core/theme/tokens.dart';
@@ -68,7 +69,6 @@ class TaskEditor extends ConsumerStatefulWidget {
 }
 
 class _TaskEditorState extends ConsumerState<TaskEditor> {
-  static const _askedKey = 'asked_reminder_permissions';
   static const _uuid = Uuid();
 
   late final TextEditingController _title;
@@ -192,45 +192,30 @@ class _TaskEditorState extends ConsumerState<TaskEditor> {
       await repo.save(edited, occ: o, scope: scope);
     }
     ref.read(feedbackProvider).light();
-    if (_reminders.isNotEmpty) await _ensurePermissions();
-    if (mounted) Navigator.pop(context);
-  }
-
-  /// First reminder ever: ask for notifications and exact alarms (§1).
-  Future<void> _ensurePermissions() async {
-    final dao = ref.read(settingsDaoProvider);
-    if (await dao.get(_askedKey) != null) return;
-    await dao.set(_askedKey, 'true');
-    final notif = ref.read(notificationServiceProvider);
-    await notif.requestNotifications();
-    if (!await notif.canScheduleExact()) await notif.requestExact();
-    ref.invalidate(exactAlarmProvider);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    // Permission is asked once, at onboarding; afterwards only Settings can
+    // turn notifications on, so just point there.
+    if (_reminders.isNotEmpty && !await ref.read(notificationServiceProvider).notificationsEnabled()) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Notifications are off — reminders won’t appear.'),
+          action: SnackBarAction(
+            label: 'Settings',
+            textColor: Tokens.coral,
+            onPressed: () => appRouter.push(Routes.settings),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _delete() async {
     final o = _occ;
     if (o == null) return;
-    final repo = ref.read(tasksRepositoryProvider);
-    if (o.task.isRecurring) {
-      final s = await askScope(context, title: 'DELETE RECURRING TASK');
-      if (s == null) return;
-      await repo.delete(o, scope: s);
-    } else {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (c) => AlertDialog(
-          title: const Text('DELETE TASK?'),
-          content: Text('“${o.title}” will be removed.'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Keep')),
-            TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Delete')),
-          ],
-        ),
-      );
-      if (!(ok ?? false)) return;
-      await repo.delete(o);
-    }
-    if (mounted) Navigator.pop(context);
+    final nav = Navigator.of(context);
+    if (await deleteOccurrence(context, ref, o) && mounted) nav.pop();
   }
 
   // --- Pickers ------------------------------------------------------------
@@ -619,24 +604,64 @@ class _StatusRow extends ConsumerWidget {
         .firstOrNull;
     final o = live ?? occurrence;
     final repo = ref.read(tasksRepositoryProvider);
-    return Wrap(
-      spacing: 8,
+    final late = o.date.isBefore(today);
+    void setDone(bool done) {
+      if (o.isDone != done) toggleDone(ref, o);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        PillChip(
-          label: o.isDone ? 'Done' : (o.date.isBefore(today) ? 'Mark done (late)' : 'Mark done'),
-          icon: o.isDone ? Icons.check_rounded : Icons.radio_button_unchecked_rounded,
-          filled: o.isDone,
-          color: o.isDone ? Tokens.mint : null,
-          onTap: () => toggleDone(ref, o),
-        ),
-        if (o.task.isRecurring)
-          PillChip(
-            label: o.status == OccurrenceStatus.skipped ? 'Skipped' : 'Skip this time',
-            icon: Icons.redo_rounded,
-            filled: o.status == OccurrenceStatus.skipped,
-            color: o.status == OccurrenceStatus.skipped ? Tokens.textSecondary : null,
-            onTap: () => repo.setSkipped(o, skipped: o.status != OccurrenceStatus.skipped),
+        // Completed / Not completed (Google Calendar's task states).
+        SegmentedButton<bool>(
+          showSelectedIcon: false,
+          style: SegmentedButton.styleFrom(
+            selectedBackgroundColor: o.isDone ? Tokens.mint : Tokens.surfaceHigh,
+            selectedForegroundColor: o.isDone ? Tokens.textInverse : Tokens.textPrimary,
           ),
+          segments: [
+            ButtonSegment(value: true, icon: const Icon(Icons.check_rounded), label: Text(late && !o.isDone ? 'Completed (late)' : 'Completed')),
+            const ButtonSegment(value: false, icon: Icon(Icons.radio_button_unchecked_rounded), label: Text('Not completed')),
+          ],
+          selected: {o.isDone},
+          onSelectionChanged: (v) => setDone(v.first),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (!o.isDone)
+              PillChip(
+                label: 'Focus on this',
+                icon: Icons.timer_outlined,
+                filled: true,
+                color: Tokens.sage,
+                onTap: () async {
+                  Navigator.pop(context);
+                  await focusOnTask(rootNavigatorKey.currentContext ?? context, ref, o);
+                },
+              ),
+            if (o.task.isRecurring)
+              PillChip(
+                label: o.status == OccurrenceStatus.skipped ? 'Skipped' : 'Skip this time',
+                icon: Icons.redo_rounded,
+                filled: o.status == OccurrenceStatus.skipped,
+                color: o.status == OccurrenceStatus.skipped ? Tokens.textSecondary : null,
+                onTap: () => repo.setSkipped(o, skipped: o.status != OccurrenceStatus.skipped),
+              ),
+            PillChip(
+              label: 'Delete',
+              icon: Icons.delete_outline_rounded,
+              color: Tokens.coralSoft,
+              foreground: Tokens.coralSoft,
+              onTap: () async {
+                final nav = Navigator.of(context);
+                if (await deleteOccurrence(context, ref, o)) nav.pop();
+              },
+            ),
+          ],
+        ),
       ],
     );
   }

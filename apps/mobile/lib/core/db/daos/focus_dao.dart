@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:poora/core/db/database.dart';
 import 'package:poora/core/time/date_utils.dart';
 import 'package:poora/features/focus/domain/focus_session.dart';
+import 'package:poora/features/focus/domain/focus_tracker.dart';
 import 'package:poora/features/focus/domain/timer_engine.dart';
 
 class FocusPreset {
@@ -19,9 +22,11 @@ class FocusPreset {
 
 /// Live session snapshot persisted for kill-recovery.
 class LiveFocusState {
-  const LiveFocusState({required this.sessionId, required this.timer});
+  const LiveFocusState({required this.sessionId, required this.timer, this.tracking = FocusTracking.empty, this.strict = false});
   final String sessionId;
   final TimerState timer;
+  final FocusTracking tracking;
+  final bool strict;
 }
 
 class FocusDao {
@@ -106,7 +111,20 @@ class FocusDao {
         linkedOccurrenceDate: r.linkedOccurrenceDate == null
             ? null
             : Days.parse(r.linkedOccurrenceDate!),
+        pausedMs: r.pausedMs,
+        awayMs: r.awayMs,
+        interruptions: r.interruptions,
+        distractions: _decodeDistractions(r.distractions),
       );
+
+  static Map<String, int> _decodeDistractions(String? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      return (jsonDecode(raw) as Map<String, dynamic>).map((k, v) => MapEntry(k, (v as num).toInt()));
+    } on Object {
+      return const {};
+    }
+  }
 
   static FocusSessionsCompanion sessionToRow(FocusSessionRecord s) =>
       FocusSessionsCompanion.insert(
@@ -126,6 +144,10 @@ class FocusDao {
               ? null
               : Days.iso(s.linkedOccurrenceDate!),
         ),
+        pausedMs: Value(s.pausedMs),
+        awayMs: Value(s.awayMs),
+        interruptions: Value(s.interruptions),
+        distractions: Value(s.distractions.isEmpty ? null : jsonEncode(s.distractions)),
       );
 
   // --- Live state ---------------------------------------------------------
@@ -146,11 +168,20 @@ class FocusDao {
         pausedAccumMs: r.pausedAccumMs,
         focusMsCompleted: r.focusMsCompleted,
         phasesCompleted: r.phasesCompleted,
+        pausedTotalMs: r.pausedTotalMs,
       ),
+      tracking: FocusTracking(
+        interruptions: r.interruptions,
+        awayMs: r.awayMs,
+        awayStartedAt: t(r.awayStartedAt),
+        awayCapAt: t(r.awayCapAt),
+        lastSeenAt: t(r.lastSeenAt),
+      ),
+      strict: r.strict,
     );
   }
 
-  Future<void> saveLiveState(String sessionId, TimerState s) => db
+  Future<void> saveLiveState(String sessionId, TimerState s, FocusTracking tr, {bool strict = false}) => db
       .into(db.focusStates)
       .insertOnConflictUpdate(
         FocusStatesCompanion.insert(
@@ -164,6 +195,13 @@ class FocusDao {
           pausedAccumMs: Value(s.pausedAccumMs),
           focusMsCompleted: Value(s.focusMsCompleted),
           phasesCompleted: Value(s.phasesCompleted),
+          pausedTotalMs: Value(s.pausedTotalMs),
+          interruptions: Value(tr.interruptions),
+          awayMs: Value(tr.awayMs),
+          awayStartedAt: Value(tr.awayStartedAt?.millisecondsSinceEpoch),
+          awayCapAt: Value(tr.awayCapAt?.millisecondsSinceEpoch),
+          lastSeenAt: Value(tr.lastSeenAt?.millisecondsSinceEpoch),
+          strict: Value(strict),
         ),
       );
 

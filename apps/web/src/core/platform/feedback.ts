@@ -12,6 +12,14 @@ export const Feedback = {
   success() {
     if (getSettings().haptics) navigator.vibrate?.([15, 40, 15]);
   },
+  /** Poora's reminder tone (same file as the app's notification sound). */
+  reminderTone() {
+    const audio = new Audio(`${import.meta.env.BASE_URL}assets/sounds/reminder_tone.wav`);
+    audio.volume = 0.9;
+    // Autoplay can be blocked until the user has interacted; the notification still shows.
+    audio.play().catch(() => {});
+  },
+
   chime(override?: Chime) {
     const file = chimes.find((c) => c.id === (override ?? getSettings().chime))?.file;
     if (!file) return;

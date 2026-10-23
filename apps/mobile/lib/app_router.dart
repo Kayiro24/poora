@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:poora/core/theme/theme.dart';
 import 'package:poora/core/time/date_utils.dart';
 import 'package:poora/core/widgets/floating_nav_bar.dart';
+import 'package:poora/features/focus/ui/distracting_apps_screen.dart';
+import 'package:poora/features/focus/ui/focus_history_screen.dart';
 import 'package:poora/features/focus/ui/focus_screen.dart';
 import 'package:poora/features/focus/ui/focus_settings_screen.dart';
 import 'package:poora/features/focus/ui/running_screen.dart';
@@ -16,6 +18,7 @@ import 'package:poora/features/onboarding/splash_screen.dart';
 import 'package:poora/features/onboarding/welcome_screen.dart';
 import 'package:poora/features/settings/settings_screen.dart';
 import 'package:poora/features/tasks/ui/tasks_screen.dart';
+import 'package:poora/features/tasks/ui/trash_screen.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -26,6 +29,10 @@ abstract final class Routes {
   static const focus = '/focus';
   static const focusRun = '/focus/run';
   static const focusSettings = '/focus/settings';
+  static const focusHistory = '/focus/history';
+  static const distractingApps = '/focus/apps';
+  static const blockedApps = '/focus/blocked';
+  static const trash = '/trash';
   static const tasks = '/tasks';
   static const insights = '/insights';
   static const settings = '/settings';
@@ -109,6 +116,26 @@ final appRouter = GoRouter(
       path: Routes.focusSettings,
       parentNavigatorKey: rootNavigatorKey,
       pageBuilder: (c, s) => _calm(s, const FocusSettingsScreen()),
+    ),
+    GoRoute(
+      path: Routes.focusHistory,
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (c, s) => _calm(s, const FocusHistoryScreen()),
+    ),
+    GoRoute(
+      path: Routes.distractingApps,
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (c, s) => _calm(s, const DistractingAppsScreen()),
+    ),
+    GoRoute(
+      path: Routes.blockedApps,
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (c, s) => _calm(s, const DistractingAppsScreen(blocking: true)),
+    ),
+    GoRoute(
+      path: Routes.trash,
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (c, s) => _calm(s, const TrashScreen()),
     ),
     GoRoute(
       path: Routes.settings,

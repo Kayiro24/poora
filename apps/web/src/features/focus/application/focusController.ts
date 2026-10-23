@@ -6,6 +6,7 @@ import { Notify } from '../../../core/platform/notifications';
 import { ReminderScheduler } from '../../../core/platform/reminderScheduler';
 import type { Day } from '../../../core/time/days';
 import { newId } from '../../tasks/domain/models';
+import { emptyTracking, FocusTracker, type FocusTracking } from '../domain/focusTracker';
 import { TimerEngine, TimerStates, type FocusConfig, type TickResult, type TimerState } from '../domain/timerEngine';
 
 export interface FocusSession {
@@ -15,7 +16,15 @@ export interface FocusSession {
   startedAt: number;
   linkedTaskId: string | null;
   linkedDate: Day | null;
+  /** Interruptions / time away (tab hidden during focus). */
+  tracking: FocusTracking;
+  /** Strict mode: a started focus phase can't be paused, skipped or ended. */
+  strict: boolean;
 }
+
+/** True while strict mode holds: a focus phase has started and isn't over. */
+export const isLocked = (s: FocusSession | null | undefined) =>
+  !!s && s.strict && s.timer.phase === 'focus' && s.timer.phaseStartedAt != null && !s.timer.cycleComplete;
 
 export interface FocusSummary {
   focusMinutes: number;
@@ -23,6 +32,10 @@ export interface FocusSummary {
   endedEarly: boolean;
   linkedTaskId: string | null;
   linkedDate: Day | null;
+  pausedMs: number;
+  awayMs: number;
+  interruptions: number;
+  appUsageMs: number;
 }
 
 export interface FocusRecovery {
@@ -40,6 +53,8 @@ interface FocusUi {
 export const useFocus = create<FocusUi>(() => ({ session: null, summary: null, recovery: null }));
 
 let phaseTimer: number | undefined;
+let heartbeat: number | undefined;
+const HEARTBEAT_MS = 30_000;
 
 export function engineFor(config: FocusConfig): TimerEngine {
   const s = getSettings();
@@ -53,6 +68,7 @@ function persist() {
   const s = get().session;
   if (!s) return;
   const t = s.timer;
+  const k = s.tracking;
   db().setFocusState({
     id: 1,
     sessionId: s.id,
@@ -64,7 +80,34 @@ function persist() {
     pausedAccumMs: t.pausedAccumMs,
     focusMsCompleted: t.focusMsCompleted,
     phasesCompleted: t.phasesCompleted,
+    pausedTotalMs: t.pausedTotalMs ?? 0,
+    interruptions: k.interruptions,
+    awayMs: k.awayMs,
+    awayStartedAt: k.awayStartedAt,
+    awayCapAt: k.awayCapAt,
+    lastSeenAt: k.lastSeenAt,
+    strict: s.strict,
   });
+}
+
+function setTracking(k: FocusTracking) {
+  const s = get().session;
+  if (!s) return;
+  useFocus.setState({ session: { ...s, tracking: k } });
+  persist();
+}
+
+/** End of the running focus phase, if one is running (breaks aren't interruptions). */
+function focusPhaseEnd(s: FocusSession) {
+  return TimerStates.isFocus(s.timer) ? engineFor(s.config).phaseEndsAt(s.timer) : null;
+}
+
+function startHeartbeat() {
+  clearInterval(heartbeat);
+  heartbeat = window.setInterval(() => {
+    const s = get().session;
+    if (s && !document.hidden) setTracking(FocusTracker.heartbeat(s.tracking, nowMs()));
+  }, HEARTBEAT_MS);
 }
 
 function setTimer(t: TimerState) {
@@ -74,7 +117,7 @@ function setTimer(t: TimerState) {
   persist();
 }
 
-function row(s: FocusSession, endedAt: number | null, focusMs = 0, endedEarly = false): FocusSessionRow {
+function row(s: FocusSession, endedAt: number | null, focusMs = 0, endedEarly = false, pausedMs = 0): FocusSessionRow {
   return {
     id: s.id,
     startedAt: s.startedAt,
@@ -88,6 +131,11 @@ function row(s: FocusSession, endedAt: number | null, focusMs = 0, endedEarly = 
     endedEarly,
     linkedTaskId: s.linkedTaskId,
     linkedOccurrenceDate: s.linkedDate,
+    pausedMs,
+    awayMs: s.tracking.awayMs,
+    interruptions: s.tracking.interruptions,
+    // Distracting-app detection needs Android usage access.
+    distractions: null,
   };
 }
 
@@ -140,12 +188,16 @@ function handleEnded(r: TickResult) {
 }
 
 function finish(endedEarly: boolean, showSummary = true) {
-  const s = get().session;
-  if (!s) return;
+  const live = get().session;
+  if (!live) return;
   clearTimeout(phaseTimer);
+  clearInterval(heartbeat);
   const now = nowMs();
-  const focusMs = engineFor(s.config).focusMsSoFar(s.timer, now);
-  db().upsertSession(row(s, now, focusMs, endedEarly));
+  const s = { ...live, tracking: FocusTracker.finish(live.tracking, now) };
+  const e = engineFor(s.config);
+  const focusMs = e.focusMsSoFar(s.timer, now);
+  const pausedMs = e.pausedMsSoFar(s.timer, now);
+  db().upsertSession(row(s, now, focusMs, endedEarly, pausedMs));
   db().setFocusState(null);
   void ReminderScheduler.releaseHeld();
   const t = s.timer;
@@ -160,6 +212,10 @@ function finish(endedEarly: boolean, showSummary = true) {
           endedEarly,
           linkedTaskId: s.linkedTaskId,
           linkedDate: s.linkedDate,
+          pausedMs,
+          awayMs: s.tracking.awayMs,
+          interruptions: s.tracking.interruptions,
+          appUsageMs: FocusTracker.appUsageMs(s.startedAt, now, s.tracking.awayMs),
         }
       : null,
   });
@@ -176,14 +232,27 @@ export const FocusController = {
       return;
     }
     const config = { focusMin: r.plannedFocusMin, shortMin: r.shortBreakMin, longMin: r.longBreakMin, longEvery: r.longEvery };
-    const timer: TimerState = { ...live, cycleComplete: false };
-    const caught = engineFor(config).tick(timer, nowMs()).state;
+    const timer: TimerState = { ...live, pausedTotalMs: live.pausedTotalMs ?? 0, cycleComplete: false };
+    const e = engineFor(config);
+    const now = nowMs();
+    const saved: FocusTracking = {
+      interruptions: live.interruptions ?? 0,
+      awayMs: live.awayMs ?? 0,
+      awayStartedAt: live.awayStartedAt ?? null,
+      awayCapAt: live.awayCapAt ?? null,
+      lastSeenAt: live.lastSeenAt ?? null,
+    };
+    // Time since the last heartbeat (tab closed or machine restarted) counts as away.
+    const tracking = FocusTracker.recover(saved, now, timer.phase === 'focus' ? e.phaseEndsAt(timer) : null);
+    const caught = e.tick(timer, now).state;
     useFocus.setState({
       recovery: {
-        session: { id: r.id, config, timer: caught, startedAt: r.startedAt, linkedTaskId: r.linkedTaskId, linkedDate: r.linkedOccurrenceDate },
+        session: { id: r.id, config, timer: caught, startedAt: r.startedAt, linkedTaskId: r.linkedTaskId, linkedDate: r.linkedOccurrenceDate, tracking, strict: live.strict ?? false },
         canResume: !caught.cycleComplete,
       },
     });
+    // Strict focus survives closing the tab: no "close session" way out.
+    if (isLocked(get().recovery?.session)) FocusController.resumeRecovered();
   },
 
   resumeRecovered() {
@@ -193,6 +262,7 @@ export const FocusController = {
     persist();
     holdReminders();
     arm();
+    startHeartbeat();
   },
 
   closeRecovered() {
@@ -202,7 +272,7 @@ export const FocusController = {
     finish(!r.session.timer.cycleComplete, false);
   },
 
-  start(config: FocusConfig, link?: { taskId: string; date: Day } | null) {
+  start(config: FocusConfig, link?: { taskId: string; date: Day } | null, strict = getSettings().strictMode) {
     if (get().session) return;
     const now = nowMs();
     const session: FocusSession = {
@@ -212,6 +282,8 @@ export const FocusController = {
       startedAt: now,
       linkedTaskId: link?.taskId ?? null,
       linkedDate: link?.date ?? null,
+      tracking: { ...emptyTracking, lastSeenAt: now },
+      strict,
     };
     useFocus.setState({ session, summary: null });
     db().upsertSession(row(session, null));
@@ -219,11 +291,17 @@ export const FocusController = {
     updateSettings((s) => ({ ...s, lastFocus: config, lastFocusAt: now }));
     holdReminders();
     arm();
+    startHeartbeat();
+  },
+
+  /** "Focus on this task": one countdown of `minutes`, no breaks, linked to the task. */
+  startForTask(taskId: string, date: Day, minutes: number) {
+    FocusController.start({ focusMin: minutes, shortMin: 0, longMin: 0, longEvery: 1 }, { taskId, date });
   },
 
   pause() {
     const s = get().session;
-    if (!s || !TimerStates.isRunning(s.timer)) return;
+    if (!s || !TimerStates.isRunning(s.timer) || isLocked(s)) return;
     setTimer(engineFor(s.config).pause(s.timer, nowMs()));
     clearTimeout(phaseTimer);
   },
@@ -239,12 +317,13 @@ export const FocusController = {
 
   skip() {
     const s = get().session;
-    if (!s) return;
+    if (!s || isLocked(s)) return;
     handleEnded(engineFor(s.config).skip(s.timer, nowMs()));
   },
 
   /** "End session" — recorded as ended early. */
   end() {
+    if (isLocked(get().session)) return;
     finish(true);
   },
 
@@ -255,15 +334,24 @@ export const FocusController = {
   /** Delete all data: drop the session without recording it. */
   discard() {
     clearTimeout(phaseTimer);
+    clearInterval(heartbeat);
     useFocus.setState({ session: null, summary: null, recovery: null });
   },
 
-  /** Catch up after the tab was hidden or the machine slept. */
-  catchUp() {
+  /** Tab hidden: start counting time away (only during a running focus phase). */
+  onHidden() {
+    const s = get().session;
+    if (s) setTracking(FocusTracker.leave(s.tracking, nowMs(), focusPhaseEnd(s)));
+  },
+
+  /** Tab visible again: close the away interval and catch up after sleep. */
+  onVisible() {
+    const s = get().session;
+    if (s) setTracking(FocusTracker.returnTo(s.tracking, nowMs()));
     onTick();
   },
 };
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) FocusController.catchUp();
-});
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => (document.hidden ? FocusController.onHidden() : FocusController.onVisible()));
+}

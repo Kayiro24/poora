@@ -15,7 +15,7 @@ function task(opts: { id?: string; start?: string; rule?: RepeatRule; startMinut
     id,
     title: `Task ${id}`,
     notes: null,
-    color: 0xfff2705e,
+    color: 0xffef7867,
     tag: null,
     priority: 0,
     allDay: false,

@@ -11,8 +11,10 @@ import { Icon } from '../../../core/widgets/Icon';
 import { confirm, prompt } from '../../../core/widgets/overlays';
 import { ArrowButton, EmptyState, Group, IconButton, NumberSheet, Pill, ScreenHeader, SectionTitle, Sheet, SRow } from '../../../core/widgets/widgets';
 import { newId, Occ } from '../../tasks/domain/models';
+import { focusDurations } from '../../tasks/ui/tasksUi';
 import { FocusController, useFocus } from '../application/focusController';
 import { FocusCfg, type FocusConfig } from '../domain/timerEngine';
+import { DailyGoalCard, FocusRules } from './FocusRules';
 
 export const builtInPresets: [string, FocusConfig][] = [
   ['25 / 5', { focusMin: 25, shortMin: 5, longMin: 15, longEvery: 4 }],
@@ -55,12 +57,17 @@ export function FocusScreen() {
           <ScreenHeader
             title="Focus"
             onPastel
-            trailing={<IconButton icon="tune" white label="Focus settings" onClick={() => navigate('/focus/settings')} />}
+            trailing={
+              <div className="row" style={{ gap: 8 }}>
+                <IconButton icon="history" white label="Focus history" onClick={() => navigate('/focus/history')} />
+                <IconButton icon="tune" white label="Focus settings" onClick={() => navigate('/focus/settings')} />
+              </div>
+            }
           />
           <div style={{ maxWidth: 300, margin: '16px auto 0' }}>
             <FocusDial config={draft} now={now} use24h={settings.use24h} />
           </div>
-          <div className="row mono" style={{ fontSize: 12, color: 'rgba(22,22,22,0.7)', marginTop: 12 }}>
+          <div className="row mono" style={{ fontSize: 12, color: 'rgba(21, 21, 23,0.7)', marginTop: 12 }}>
             <span>{Fmt.utcOffset(now)}</span>
             <span className="spacer" />
             <span>{Fmt.time(now, settings.use24h)}</span>
@@ -77,6 +84,16 @@ export function FocusScreen() {
         </section>
 
         <div className="stack-l">
+          {/* One-tap focus lengths (15 / 25 / 45 / 60 min). */}
+          <div className="quick-durations" role="group" aria-label="Focus length">
+            {focusDurations.map((m) => (
+              <button key={m} type="button" aria-pressed={draft.focusMin === m} onClick={() => set({ ...draft, focusMin: m })}>
+                {m} min
+              </button>
+            ))}
+          </div>
+          <DailyGoalCard />
+          <FocusRules />
           {settings.lastFocusAt != null && (
             <div className="card row" style={{ padding: '16px 12px 16px 20px' }}>
               <div style={{ flex: 1 }}>
@@ -211,34 +228,53 @@ function LinkTask() {
 }
 
 /** White clock face, fine ticks; focus arc coral, break arc sageDeep, from now. */
+/** Paper clock face: minute dots, five-minute bars, quarter numerals, focus then break arc (after a small gap), and a notch at "now". */
 export function FocusDial({ config, now, use24h }: { config: FocusConfig; now: Date; use24h: boolean }) {
   const end = new Date(now.getTime() + config.focusMin * 60000);
   const span = Math.ceil((config.focusMin + config.shortMin) / 60) * 60;
   const startAngle = ((now.getMinutes() + now.getSeconds() / 60) / 60) * 360;
-  const R = 100, C = 2 * Math.PI * 66;
+  const R = 100, AR = 62, C = 2 * Math.PI * AR, GAP = 0.06 * AR;
   const focusLen = (config.focusMin / span) * C;
   const breakLen = (config.shortMin / span) * C;
   const rad = ((startAngle - 90) * Math.PI) / 180;
+  const at = (a: number, r: number) => [100 + Math.cos(a) * r, 100 + Math.sin(a) * r] as const;
+  const [tx, ty] = at(rad, R - 11);
+  const side = [-Math.sin(rad), Math.cos(rad)];
+  const [bx, by] = at(rad, R - 3);
+  const [hx, hy] = at(rad, AR);
   return (
     <div role="img" aria-label={`Plan: ${config.focusMin} minutes focus, ${config.shortMin} minutes break, ending at ${Fmt.time(end, use24h)}`} style={{ position: 'relative' }}>
       <svg viewBox="0 0 200 200" style={{ width: '100%', display: 'block' }}>
-        <circle cx="100" cy="100" r={R} fill="#fff" />
-        {Array.from({ length: 120 }, (_, i) => {
-          const a = (i / 120) * 2 * Math.PI - Math.PI / 2;
-          const long = i % 10 === 0;
-          const o = R - 4, inn = o - (long ? 6 : 3);
-          return (
-            <line key={i} x1={100 + Math.cos(a) * inn} y1={100 + Math.sin(a) * inn} x2={100 + Math.cos(a) * o} y2={100 + Math.sin(a) * o}
-              stroke={T.textInverse} strokeOpacity={long ? 0.8 : 0.35} strokeWidth={long ? 1 : 0.5} strokeLinecap="round" />
-          );
+        <circle cx="100" cy="100" r={R} fill={T.paper} />
+        <circle cx="100" cy="100" r={R - 2} fill="none" stroke={T.textInverse} strokeOpacity={0.08} strokeWidth="0.5" />
+        {Array.from({ length: 60 }, (_, i) => {
+          const a = (i / 60) * 2 * Math.PI - Math.PI / 2;
+          if (i % 5 !== 0) {
+            const [x, y] = at(a, R - 7);
+            return <circle key={i} cx={x} cy={y} r="0.55" fill={T.textInverse} fillOpacity={0.3} />;
+          }
+          const [x1, y1] = at(a, R - 9.5);
+          const [x2, y2] = at(a, R - 6);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={T.textInverse} strokeOpacity={0.75} strokeWidth="1.2" strokeLinecap="round" />;
         })}
-        <circle cx="100" cy="100" r="66" fill="none" stroke={T.sage} strokeOpacity={0.35} strokeWidth="7" />
+        {span === 60 &&
+          [0, 15, 30, 45].map((m) => {
+            const [x, y] = at((m / 60) * 2 * Math.PI - Math.PI / 2, R - 15);
+            return (
+              <text key={m} x={x} y={y} textAnchor="middle" dominantBaseline="central" className="mono" fontSize="5" fill={T.textInverse} fillOpacity={0.45}>
+                {String(m).padStart(2, '0')}
+              </text>
+            );
+          })}
+        <circle cx="100" cy="100" r={AR} fill="none" stroke={T.sage} strokeOpacity={0.3} strokeWidth="6" />
         <g transform={`rotate(${startAngle - 90} 100 100)`}>
-          <circle cx="100" cy="100" r="66" fill="none" stroke={T.sageDeep} strokeWidth="7" strokeLinecap="round" strokeDasharray={`0 ${focusLen} ${breakLen} ${C}`} />
-          <circle cx="100" cy="100" r="66" fill="none" stroke={T.coral} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${focusLen} ${C}`} />
+          {breakLen > GAP * 2 && (
+            <circle cx="100" cy="100" r={AR} fill="none" stroke={T.sageDeep} strokeWidth="6" strokeLinecap="round" strokeDasharray={`0 ${focusLen + GAP} ${breakLen - GAP} ${C}`} />
+          )}
+          <circle cx="100" cy="100" r={AR} fill="none" stroke={T.coral} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${focusLen} ${C}`} />
         </g>
-        <line x1={100 + Math.cos(rad) * 57} y1={100 + Math.sin(rad) * 57} x2={100 + Math.cos(rad) * 97} y2={100 + Math.sin(rad) * 97} stroke={T.textInverse} strokeWidth="1.3" strokeLinecap="round" />
-        <circle cx={100 + Math.cos(rad) * 97} cy={100 + Math.sin(rad) * 97} r="2" fill={T.textInverse} />
+        <path d={`M${tx} ${ty} L${bx + side[0] * 3} ${by + side[1] * 3} L${bx - side[0] * 3} ${by - side[1] * 3} Z`} fill={T.textInverse} />
+        <circle cx={hx} cy={hy} r="1.5" fill={T.paper} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: T.textInverse, textAlign: 'center' }}>
         <div>

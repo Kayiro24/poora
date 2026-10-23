@@ -8,10 +8,10 @@ import sys
 from PIL import Image, ImageDraw
 
 OUT = sys.argv[1]
-BG = (22, 22, 22)
-SAGE = (201, 217, 207)
-CORAL = (242, 112, 94)
-ICE = (191, 234, 242)
+BG = (21, 21, 23)
+SAGE = (198, 218, 210)
+CORAL = (239, 120, 103)
+ICE = (195, 231, 239)
 SS = 4
 
 STEM = (300, 190, 420, 850)

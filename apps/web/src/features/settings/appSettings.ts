@@ -28,6 +28,14 @@ export interface AppSettings {
   lastFocusAt: number | null;
   iosFocusTipShown: boolean;
   onboarded: boolean;
+  /** Android package names (set in the app); kept so exports round-trip. */
+  distractingApps: string[];
+  /** Strict mode: a running focus phase can't be paused, skipped or ended. */
+  strictMode: boolean;
+  /** "You versus you": the day's focus target, in minutes. */
+  dailyFocusGoalMin: number;
+  /** Android packages blocked during focus (set in the app); kept so exports round-trip. */
+  blockedApps: string[];
 }
 
 export const defaultSettings: AppSettings = {
@@ -48,6 +56,10 @@ export const defaultSettings: AppSettings = {
   lastFocusAt: null,
   iosFocusTipShown: false,
   onboarded: false,
+  distractingApps: [],
+  strictMode: false,
+  dailyFocusGoalMin: 120,
+  blockedApps: [],
 };
 
 export function settingsToMap(s: AppSettings): Record<string, string> {
@@ -69,6 +81,10 @@ export function settingsToMap(s: AppSettings): Record<string, string> {
     lastFocusAt: s.lastFocusAt == null ? '' : String(s.lastFocusAt),
     iosFocusTipShown: String(s.iosFocusTipShown),
     onboarded: String(s.onboarded),
+    distractingApps: s.distractingApps.join(','),
+    strictMode: String(s.strictMode),
+    dailyFocusGoalMin: String(s.dailyFocusGoalMin),
+    blockedApps: s.blockedApps.join(','),
   };
 }
 
@@ -100,5 +116,9 @@ export function settingsFromMap(m: Record<string, string>): AppSettings {
     lastFocusAt: n(m.lastFocusAt),
     iosFocusTipShown: b('iosFocusTipShown', d.iosFocusTipShown),
     onboarded: b('onboarded', d.onboarded),
+    distractingApps: (m.distractingApps ?? '').split(',').filter(Boolean),
+    strictMode: b('strictMode', d.strictMode),
+    dailyFocusGoalMin: n(m.dailyFocusGoalMin) ?? d.dailyFocusGoalMin,
+    blockedApps: (m.blockedApps ?? '').split(',').filter(Boolean),
   };
 }

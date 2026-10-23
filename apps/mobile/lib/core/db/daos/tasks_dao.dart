@@ -67,6 +67,44 @@ class TasksDao {
         ),
       );
 
+  Future<void> restore(String taskId, DateTime now) =>
+      (db.update(db.tasks)..where((t) => t.id.equals(taskId))).write(
+        TasksCompanion(deletedAt: const Value(null), updatedAt: Value(now.millisecondsSinceEpoch)),
+      );
+
+  /// Removes a task with its reminders and records for good.
+  Future<void> hardDelete(String taskId) => db.transaction(() async {
+    await (db.delete(db.taskReminders)..where((r) => r.taskId.equals(taskId))).go();
+    await (db.delete(db.occurrenceRecords)..where((r) => r.taskId.equals(taskId))).go();
+    await (db.delete(db.tasks)..where((t) => t.id.equals(taskId))).go();
+  });
+
+  /// Permanently removes trashed tasks deleted before [before].
+  Future<void> purgeDeleted({required DateTime before}) async {
+    final rows = await (db.select(db.tasks)
+          ..where((t) => t.deletedAt.isNotNull() & t.deletedAt.isSmallerThanValue(before.millisecondsSinceEpoch)))
+        .get();
+    for (final r in rows) {
+      await hardDelete(r.id);
+    }
+  }
+
+  /// Trashed tasks, most recently deleted first.
+  Stream<List<Task>> watchDeleted() async* {
+    Future<List<Task>> load() async {
+      final rows = await (db.select(db.tasks)
+            ..where((t) => t.deletedAt.isNotNull())
+            ..orderBy([(t) => OrderingTerm.desc(t.deletedAt)]))
+          .get();
+      return [for (final r in rows) taskFromRow(r, const [])];
+    }
+
+    yield await load();
+    await for (final _ in db.tableUpdates(TableUpdateQuery.onTable(db.tasks))) {
+      yield await load();
+    }
+  }
+
   Future<OccurrenceRecord?> record(String taskId, DateTime date) async {
     final row =
         await (db.select(db.occurrenceRecords)..where(

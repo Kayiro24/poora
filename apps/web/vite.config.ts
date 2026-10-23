@@ -27,8 +27,8 @@ export default defineConfig(({ isSsrBuild }) => ({
         name: 'Poora',
         short_name: 'Poora',
         description: 'Make every day whole. A calm focus timer and daily planner.',
-        theme_color: '#161616',
-        background_color: '#161616',
+        theme_color: '#151517',
+        background_color: '#151517',
         display: 'standalone',
         orientation: 'any',
         // Installed app opens straight into the app, not the landing page.

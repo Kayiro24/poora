@@ -220,27 +220,37 @@ class TasksRepository {
 
   // --- Delete -------------------------------------------------------------
 
-  Future<void> delete(Occurrence occ, {EditScope scope = EditScope.all}) async {
+  /// Deletes with Google Calendar scopes and returns an undo action:
+  /// * one-off or "All tasks": the task moves to Trash (soft delete);
+  /// * "This task": that occurrence is removed;
+  /// * "This and following": the series ends the day before.
+  Future<Future<void> Function()> delete(Occurrence occ, {EditScope scope = EditScope.all}) async {
     final t = occ.task;
     final now = clock.now();
-    if (!t.isRecurring || scope == EditScope.all) {
-      return dao.softDelete(t.id, now);
+    if (!t.isRecurring || scope == EditScope.all || (scope == EditScope.thisAndFollowing && Days.same(occ.originalDate, t.startDate))) {
+      await dao.softDelete(t.id, now);
+      return () => dao.restore(t.id, clock.now());
     }
     if (scope == EditScope.thisOne) {
-      final rec = await _recordFor(occ);
-      return dao.upsertRecord(
-        rec.copyWith(status: RecordStatus.deleted, completedAt: null),
-      );
+      final previous = occ.record ?? await dao.record(t.id, occ.originalDate);
+      final rec = previous ?? await _recordFor(occ);
+      await dao.upsertRecord(rec.copyWith(status: RecordStatus.deleted, completedAt: null));
+      return () => previous == null ? dao.deleteRecord(t.id, occ.originalDate) : dao.upsertRecord(previous);
     }
-    if (Days.same(occ.originalDate, t.startDate)) {
-      return dao.softDelete(t.id, now);
-    }
-    await dao.upsertTask(
-      t.copyWith(
-        endsOn: Days.add(occ.originalDate, -1),
-        endsAfterCount: null,
-        updatedAt: now,
-      ),
-    );
+    await dao.upsertTask(t.copyWith(endsOn: Days.add(occ.originalDate, -1), endsAfterCount: null, updatedAt: now));
+    return () => dao.upsertTask(t.copyWith(updatedAt: clock.now()));
   }
+
+  // --- Trash (Google Calendar keeps deleted events for 30 days) ---------------
+
+  static const trashDays = 30;
+
+  Future<void> restore(String taskId) => dao.restore(taskId, clock.now());
+
+  Future<void> deleteForever(String taskId) => dao.hardDelete(taskId);
+
+  Future<void> emptyTrash() => dao.purgeDeleted(before: clock.now());
+
+  /// Drops trash older than [trashDays]; run at launch.
+  Future<void> purgeOldTrash() => dao.purgeDeleted(before: clock.now().subtract(const Duration(days: trashDays)));
 }

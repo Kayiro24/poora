@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { db } from '../../../core/db/store';
+import { useNavigate } from 'react-router';
 import { getSettings, useOccurrences, useSettings, useToday } from '../../../core/hooks';
 import { Feedback } from '../../../core/platform/feedback';
 import { Notify } from '../../../core/platform/notifications';
@@ -7,15 +7,14 @@ import { css, T, TaskColors } from '../../../core/theme/tokens';
 import { Range, type Day } from '../../../core/time/days';
 import { Fmt } from '../../../core/time/format';
 import { Icon, type IconName } from '../../../core/widgets/Icon';
-import { confirm, toast } from '../../../core/widgets/overlays';
+import { toast } from '../../../core/widgets/overlays';
 import { NumberSheet, Pill, Sheet } from '../../../core/widgets/widgets';
+import { FocusController, useFocus } from '../../focus/application/focusController';
 import { TasksRepository } from '../data/tasksRepository';
 import { isRecurring, newId, Occ, Reminders, type Occurrence, type Priority, type Task, type TaskReminder } from '../domain/models';
 import { Rules, type RepeatRule } from '../domain/recurrence';
 import { RepeatPicker } from './RepeatPicker';
-import { askScope, closeEditor, toggleDone, useEditor, useTasksView } from './tasksUi';
-
-const ASKED_KEY = 'asked_reminder_permissions';
+import { askScope, closeEditor, closeFocusPick, deleteOccurrence, focusDurations, focusOnTask, toggleDone, useEditor, useFocusPick, useTasksView } from './tasksUi';
 const toTime = (m: number) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const fromTime = (v: string) => {
   const [h, m] = v.split(':').map(Number);
@@ -33,6 +32,7 @@ export function TaskEditorHost() {
 }
 
 function TaskEditor() {
+  const navigate = useNavigate();
   const e = useEditor.getState();
   const settings = useSettings();
   const selectedDay = useTasksView((s) => s.selected);
@@ -110,24 +110,15 @@ function TaskEditor() {
     else TasksRepository.create(edited);
     Feedback.light();
     closeEditor();
-    if (reminders.length && !db().settings[ASKED_KEY]) {
-      db().setSettings({ [ASKED_KEY]: 'true' });
-      const ok = await Notify.request();
-      if (!ok) toast('Reminders need notification permission — you can allow it in Settings.');
+    // Permission is asked once, at onboarding; afterwards only Settings can
+    // turn notifications on, so just point there.
+    if (reminders.length && Notify.permission() !== 'granted') {
+      toast('Reminders need notifications.', { label: 'Settings', run: () => navigate('/settings') });
     }
   };
 
   const remove = async () => {
-    if (!o) return;
-    if (isRecurring(o.task)) {
-      const scope = await askScope('Delete recurring task');
-      if (!scope) return;
-      TasksRepository.delete(o, scope);
-    } else {
-      if (!(await confirm({ title: 'Delete task?', body: `“${o.title}” will be removed.`, action: 'Delete', cancel: 'Keep', danger: true }))) return;
-      TasksRepository.delete(o);
-    }
-    closeEditor();
+    if (o && (await deleteOccurrence(o))) closeEditor();
   };
 
   const matchingTags = tags.filter((t) => t.toLowerCase().includes(tag.trim().toLowerCase()) && t !== tag.trim()).slice(0, 8);
@@ -351,24 +342,96 @@ function ReminderSheet(p: { open: boolean; allDay: boolean; time: (m: number) =>
   );
 }
 
-/** Done / skip toggles inside the editor, reading the live occurrence. */
+/** Completed / Not completed (Google Calendar's task states), focus, skip and delete — on the live occurrence. */
 function StatusRow({ occurrence }: { occurrence: Occurrence }) {
   const today = useToday();
   const live = useOccurrences(Range.day(occurrence.date)).find((x) => Occ.key(x) === Occ.key(occurrence)) ?? occurrence;
   const done = live.status === 'done';
   const skipped = live.status === 'skipped';
+  const setDone = (v: boolean) => v !== done && toggleDone(live);
   return (
-    <div className="chip-row" style={{ marginTop: 8 }}>
-      <Pill
-        label={done ? 'Done' : live.date < today ? 'Mark done (late)' : 'Mark done'}
-        icon={done ? 'check' : undefined}
-        filled={done}
-        color={done ? T.mint : undefined}
-        onClick={() => toggleDone(live)}
-      />
-      {isRecurring(live.task) && (
-        <Pill label={skipped ? 'Skipped' : 'Skip this time'} icon="redo" filled={skipped} color={skipped ? T.textSecondary : undefined} onClick={() => TasksRepository.setSkipped(live, !skipped)} />
-      )}
+    <div style={{ marginTop: 8 }}>
+      <div className="segmented" role="radiogroup" aria-label="Status">
+        <button type="button" role="radio" className="done" aria-checked={done} onClick={() => setDone(true)}>
+          <Icon name="check" size={18} /> {live.date < today && !done ? 'Completed (late)' : 'Completed'}
+        </button>
+        <button type="button" role="radio" aria-checked={!done} onClick={() => setDone(false)}>
+          <Icon name="radio" size={18} /> Not completed
+        </button>
+      </div>
+      <div className="chip-row" style={{ marginTop: 10 }}>
+        {!done && (
+          <Pill
+            label="Focus on this"
+            icon="timer"
+            filled
+            color={T.sage}
+            onClick={() => {
+              closeEditor();
+              focusOnTask(live);
+            }}
+          />
+        )}
+        {isRecurring(live.task) && (
+          <Pill label={skipped ? 'Skipped' : 'Skip this time'} icon="redo" filled={skipped} color={skipped ? T.textSecondary : undefined} onClick={() => TasksRepository.setSkipped(live, !skipped)} />
+        )}
+        <Pill
+          label="Delete"
+          icon="delete"
+          color={T.coralSoft}
+          fg={T.coralSoft}
+          onClick={async () => {
+            if (await deleteOccurrence(live)) closeEditor();
+          }}
+        />
+      </div>
     </div>
+  );
+}
+
+/** "Focus on this task": 15 / 25 / 45 / 60 min or a custom length, as one countdown linked to the task. */
+export function FocusOnTaskHost() {
+  const o = useFocusPick((s) => s.occurrence);
+  const [custom, setCustom] = useState(false);
+  const start = (minutes: number) => {
+    if (!o) return;
+    closeFocusPick();
+    setCustom(false);
+    if (useFocus.getState().session) return toast('A focus session is already running.');
+    Feedback.light();
+    FocusController.startForTask(o.task.id, o.originalDate, minutes);
+  };
+  return (
+    <>
+      <Sheet open={!!o && !custom} onClose={closeFocusPick} label="Focus on task">
+        <h2 className="display d24" style={{ margin: '4px 0 2px' }}>Focus on task</h2>
+        <p className="muted" style={{ margin: '0 0 16px' }}>{o?.title}</p>
+        <div className="focus-pick">
+          {focusDurations.map((m) => (
+            <button key={m} type="button" aria-label={`${m} minutes`} onClick={() => start(m)}>
+              <span className="mono">{m}</span>
+              <span className="body-s" style={{ color: 'inherit' }}>min</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="text-btn" style={{ marginTop: 12 }} onClick={() => setCustom(true)}>
+          Custom length…
+        </button>
+      </Sheet>
+      <NumberSheet
+        open={!!o && custom}
+        title="Focus length"
+        min={5}
+        max={180}
+        step={5}
+        value={30}
+        unit="minutes"
+        onPick={start}
+        onClose={() => {
+          setCustom(false);
+          closeFocusPick();
+        }}
+      />
+    </>
   );
 }

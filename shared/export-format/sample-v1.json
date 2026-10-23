@@ -7,7 +7,7 @@
       "id": "8f0c2a3e-0001-4000-8000-000000000001",
       "title": "Morning pages",
       "notes": "Three pages, no editing.",
-      "color": 4294078558,
+      "color": 4293884007,
       "tag": "Mind",
       "priority": 2,
       "allDay": false,
@@ -30,7 +30,7 @@
       "id": "8f0c2a3e-0002-4000-8000-000000000002",
       "title": "Gym",
       "notes": null,
-      "color": 4285428470,
+      "color": 4285954544,
       "tag": "Health",
       "priority": 0,
       "allDay": false,
@@ -53,7 +53,7 @@
       "id": "8f0c2a3e-0003-4000-8000-000000000003",
       "title": "Run",
       "notes": null,
-      "color": 4288602040,
+      "color": 4288863680,
       "tag": "Health",
       "priority": 1,
       "allDay": true,
@@ -76,7 +76,7 @@
       "id": "8f0c2a3e-0004-4000-8000-000000000004",
       "title": "File taxes",
       "notes": null,
-      "color": 4294363461,
+      "color": 4294101592,
       "tag": null,
       "priority": 2,
       "allDay": true,
@@ -99,7 +99,7 @@
       "id": "8f0c2a3e-0005-4000-8000-000000000005",
       "title": "Old habit",
       "notes": null,
-      "color": 4291274482,
+      "color": 4291406830,
       "tag": null,
       "priority": 0,
       "allDay": false,
@@ -134,8 +134,8 @@
     { "id": "rec-0006", "taskId": "8f0c2a3e-0004-4000-8000-000000000004", "occurrenceDate": "2026-10-15", "status": "done", "completedAt": 1792135200000, "overrideDate": null, "overrideStartMinute": null, "overrideTitle": null, "late": true }
   ],
   "focusSessions": [
-    { "id": "fs-0001", "startedAt": 1791786600000, "endedAt": 1791790800000, "plannedFocusMin": 25, "shortBreakMin": 5, "longBreakMin": 15, "longEvery": 2, "focusMsCompleted": 3000000, "phasesCompleted": 4, "endedEarly": false, "linkedTaskId": "8f0c2a3e-0001-4000-8000-000000000001", "linkedOccurrenceDate": "2026-10-12" },
-    { "id": "fs-0002", "startedAt": 1791873000000, "endedAt": 1791873720000, "plannedFocusMin": 50, "shortBreakMin": 10, "longBreakMin": 30, "longEvery": 3, "focusMsCompleted": 720000, "phasesCompleted": 0, "endedEarly": true, "linkedTaskId": null, "linkedOccurrenceDate": null }
+    { "id": "fs-0001", "startedAt": 1791786600000, "endedAt": 1791790800000, "plannedFocusMin": 25, "shortBreakMin": 5, "longBreakMin": 15, "longEvery": 2, "focusMsCompleted": 3000000, "phasesCompleted": 4, "endedEarly": false, "linkedTaskId": "8f0c2a3e-0001-4000-8000-000000000001", "linkedOccurrenceDate": "2026-10-12", "pausedMs": 120000, "awayMs": 180000, "interruptions": 2, "distractions": "{\"com.instagram.android\":120000}" },
+    { "id": "fs-0002", "startedAt": 1791873000000, "endedAt": 1791873720000, "plannedFocusMin": 50, "shortBreakMin": 10, "longBreakMin": 30, "longEvery": 3, "focusMsCompleted": 720000, "phasesCompleted": 0, "endedEarly": true, "linkedTaskId": null, "linkedOccurrenceDate": null, "pausedMs": 0, "awayMs": 0, "interruptions": 0, "distractions": null }
   ],
   "presets": [
     { "id": "pre-0001", "name": "Deep work", "focusMin": 75, "shortMin": 15, "longMin": 30, "longEvery": 2, "sort": 0 }
@@ -150,6 +150,7 @@
     { "key": "chime", "value": "softBell" },
     { "key": "lastFocus", "value": "{\"focusMin\":25,\"shortMin\":5,\"longMin\":15,\"longEvery\":2}" },
     { "key": "lastFocusAt", "value": "1791786600000" },
-    { "key": "onboarded", "value": "true" }
+    { "key": "onboarded", "value": "true" },
+    { "key": "distractingApps", "value": "com.instagram.android,com.google.android.youtube" }
   ]
 }

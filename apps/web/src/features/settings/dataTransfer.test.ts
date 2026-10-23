@@ -37,11 +37,27 @@ describe('export format v1 (shared with the mobile app)', () => {
     expect(run.reminders).toEqual([{ id: 'rem-0003', offsetMin: 0, atMinute: 420 }]);
     const s = selectSettings(db());
     expect([s.name, s.chime, s.lastFocus.longEvery, s.onboarded]).toEqual(['Asha', 'softBell', 2, true]);
+    expect(s.distractingApps).toEqual(['com.instagram.android', 'com.google.android.youtube']);
 
     const occ = generatorFor(true).generate(snap, Range.of('2026-10-12', '2026-10-16'), '2026-10-16');
     const gymMoved = occ.find((o) => o.task.title === 'Gym' && o.originalDate === '2026-10-14')!;
     expect([gymMoved.date, gymMoved.startMinute, gymMoved.title]).toEqual(['2026-10-15', 1140, 'Gym (late slot)']);
     expect(occ.some((o) => o.task.title === 'Morning pages' && o.date === '2026-10-14')).toBe(false); // deleted occurrence
+  });
+
+  test('older exports without focus-tracking fields still import', () => {
+    const old = structuredClone(sample) as { focusSessions: Record<string, unknown>[] };
+    for (const r of old.focusSessions) for (const k of ['pausedMs', 'awayMs', 'interruptions', 'distractions']) delete r[k];
+    importJson(JSON.stringify(old));
+    const f = db().focusSessions[0];
+    expect([f.pausedMs, f.awayMs, f.interruptions, f.distractions]).toEqual([0, 0, 0, null]);
+  });
+
+  test('tasks on the old palette import with today’s shades', () => {
+    const old = structuredClone(sample) as { tasks: { id: string; color: number }[] };
+    old.tasks[0].color = 0xfff2705e; // coral before the shade shift
+    importJson(JSON.stringify(old));
+    expect(db().tasks.find((t) => t.id === old.tasks[0].id)!.color).toBe(0xffef7867);
   });
 
   test('rejects files that are not exports, changing nothing', () => {

@@ -31,9 +31,14 @@ const features: { id: string; icon: IconName; color: string; title: string; body
     color: T.sage,
     title: 'Focus fully',
     body: 'A Pomodoro timer whose running screen shows nothing but the time. Reminders wait until you finish; on Android, Poora can switch on Do Not Disturb and puts it back after.',
-    points: ['Presets like 25/5, 50/10 and 90/20', 'Wall-clock accurate, even if you close the tab', 'Link a session to a task'],
+    points: [
+      'Focus on a task for 15, 25, 45 or 60 minutes',
+      'Strict mode: no pausing, no ending early',
+      'Android: block distracting apps during focus',
+      'A daily focus goal and streak — you versus you, no leaderboards',
+    ],
     shot: 'screen-focus',
-    alt: 'Poora focus screen: a white dial planning 25 minutes of focus and a 5 minute break, with a Start focus button.',
+    alt: 'Poora focus screen: a paper-white dial planning 25 minutes of focus and a 5 minute break, with a Start focus button.',
   },
   {
     id: 'tasks',
@@ -74,7 +79,7 @@ export function LandingPage() {
               <Icon name="android" /> Get the Android app
             </a>
           </div>
-          <p className="body-s" style={{ marginTop: 14 }}>{AppInfo.subline} Works offline once loaded — install it from your browser’s menu.</p>
+          <p className="body-s" style={{ marginTop: 14 }}>{AppInfo.subline} {AppInfo.motto} Works offline once loaded — install it from your browser’s menu.</p>
         </div>
         <div className="hero-shot">
           <Shot name="screen-home" eager alt="Poora home screen: next task with a countdown, a Start focus card and this week’s completion bubbles." />

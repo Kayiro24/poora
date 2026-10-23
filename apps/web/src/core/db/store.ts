@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { TaskColors } from '../theme/tokens';
 import type { Day } from '../time/days';
 import type { FocusPhase } from '../../features/focus/domain/timerEngine';
 import type { OccurrenceRecord, Task, TaskReminder } from '../../features/tasks/domain/models';
@@ -52,7 +53,18 @@ export interface FocusSessionRow {
   endedEarly: boolean;
   linkedTaskId: string | null;
   linkedOccurrenceDate: Day | null;
+  /** Time the user had the timer paused. */
+  pausedMs: number;
+  /** Time spent outside the app while a focus phase ran. */
+  awayMs: number;
+  /** Times the user left during focus. */
+  interruptions: number;
+  /** JSON `{package: ms}` of distracting apps (Android only; null on web). */
+  distractions: string | null;
 }
+
+/** Older exports and saved sessions lack the focus-tracking fields. */
+export const focusSessionDefaults = { pausedMs: 0, awayMs: 0, interruptions: 0, distractions: null } as const;
 
 export interface FocusStateRow {
   id: 1;
@@ -65,6 +77,15 @@ export interface FocusStateRow {
   pausedAccumMs: number;
   focusMsCompleted: number;
   phasesCompleted: number;
+  // Focus tracking (absent in states saved before it existed).
+  pausedTotalMs?: number;
+  interruptions?: number;
+  awayMs?: number;
+  awayStartedAt?: number | null;
+  awayCapAt?: number | null;
+  lastSeenAt?: number | null;
+  /** Strict mode: the focus phase can't be paused, skipped or ended. */
+  strict?: boolean;
 }
 
 export interface PresetRow {
@@ -100,6 +121,9 @@ export const emptyTables: Tables = {
 interface DbActions {
   upsertTask(t: Task): void;
   softDeleteTask(id: string, now: number): void;
+  restoreTask(id: string, now: number): void;
+  /** Deletes tasks for good, with their reminders and records. */
+  hardDeleteTasks(ids: string[]): void;
   upsertRecord(r: OccurrenceRecord): void;
   deleteRecord(taskId: string, date: Day): void;
   reassignRecords(fromTask: string, toTask: string, fromDate: Day): void;
@@ -171,6 +195,19 @@ export const useDb = create<Db>()(
       softDeleteTask: (id, now) =>
         set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, deletedAt: now, updatedAt: now } : t)) })),
 
+      restoreTask: (id, now) =>
+        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, deletedAt: null, updatedAt: now } : t)) })),
+
+      hardDeleteTasks: (ids) =>
+        set((s) => {
+          const gone = new Set(ids);
+          return {
+            tasks: s.tasks.filter((t) => !gone.has(t.id)),
+            taskReminders: s.taskReminders.filter((r) => !gone.has(r.taskId)),
+            occurrenceRecords: s.occurrenceRecords.filter((r) => !gone.has(r.taskId)),
+          };
+        }),
+
       upsertRecord: (r) =>
         set((s) => {
           const exists = s.occurrenceRecords.some((x) => sameRecord(x, r.taskId, r.occurrenceDate));
@@ -215,7 +252,16 @@ export const useDb = create<Db>()(
     }),
     {
       name: 'poora:db',
-      version: 1,
+      version: 3,
+      // v2: focus sessions gained tracking fields. v3: palette shade shift.
+      migrate: (state) => {
+        const s = state as Partial<Tables>;
+        return {
+          ...s,
+          focusSessions: (s.focusSessions ?? []).map((f) => ({ ...focusSessionDefaults, ...f })),
+          tasks: (s.tasks ?? []).map((t) => ({ ...t, color: TaskColors.migrate(t.color) })),
+        } as Db;
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         tasks: s.tasks,

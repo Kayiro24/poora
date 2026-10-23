@@ -21,7 +21,7 @@ void main() {
       TasksCompanion.insert(
         id: 't1',
         title: 'Read',
-        color: 0xFFF2705E,
+        color: 0xFFEF7867,
         startDate: '2026-10-20',
         seriesId: 't1',
         createdAt: 0,

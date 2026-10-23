@@ -23,9 +23,11 @@ import 'package:poora/features/focus/application/focus_controller.dart';
 import 'package:poora/features/focus/application/focus_draft.dart';
 import 'package:poora/features/focus/domain/timer_engine.dart';
 import 'package:poora/features/focus/ui/focus_dial.dart';
+import 'package:poora/features/focus/ui/focus_rules.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 import 'package:poora/features/tasks/application/tasks_providers.dart';
 import 'package:poora/features/tasks/domain/models.dart';
+import 'package:poora/features/tasks/ui/task_actions.dart' show focusDurations;
 import 'package:uuid/uuid.dart';
 
 /// Starts a session with [config], showing the one-time iOS Focus tip first.
@@ -41,18 +43,14 @@ Future<void> startFocus(WidgetRef ref, BuildContext context, FocusConfig config)
           'turn on a Focus mode from Control Center. ${AppInfo.name} will hold its own '
           'reminders until you’re done.',
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Got it')),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Got it'))],
       ),
     );
     await ref.read(settingsProvider.notifier).update((s) => s.copyWith(iosFocusTipShown: true));
   }
   ref.read(feedbackProvider).light();
   final link = ref.read(focusLinkProvider);
-  await ref
-      .read(focusControllerProvider.notifier)
-      .start(config, linkedTaskId: link?.$1, linkedDate: link?.$2);
+  await ref.read(focusControllerProvider.notifier).start(config, linkedTaskId: link?.$1, linkedDate: link?.$2);
   ref.read(focusLinkProvider.notifier).set(null);
 }
 
@@ -71,12 +69,7 @@ class FocusScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            Space.side,
-            Space.m,
-            Space.side,
-            FloatingNavBar.reservedHeight(context),
-          ),
+          padding: EdgeInsets.fromLTRB(Space.side, Space.m, Space.side, FloatingNavBar.reservedHeight(context)),
           children: [
             AccentPanel(
               color: Tokens.sage,
@@ -86,6 +79,14 @@ class FocusScreen extends ConsumerWidget {
                     title: 'Focus',
                     onPastel: true,
                     trailing: [
+                      RoundIconButton(
+                        icon: Icons.history_rounded,
+                        semanticLabel: 'Focus history',
+                        background: Tokens.white,
+                        foreground: Tokens.textInverse,
+                        onTap: () => context.push(Routes.focusHistory),
+                      ),
+                      const SizedBox(width: 8),
                       RoundIconButton(
                         icon: Icons.tune_rounded,
                         semanticLabel: 'Focus settings',
@@ -103,10 +104,7 @@ class FocusScreen extends ConsumerWidget {
                   const SizedBox(height: Space.m),
                   Row(
                     children: [
-                      Text(
-                        Fmt.utcOffset(now.timeZoneOffset),
-                        style: AppText.mono(12, color: Tokens.textInverse.withValues(alpha: 0.7)),
-                      ),
+                      Text(Fmt.utcOffset(now.timeZoneOffset), style: AppText.mono(12, color: Tokens.textInverse.withValues(alpha: 0.7))),
                       const Spacer(),
                       Text(
                         Fmt.time(now, use24h: settings.use24h),
@@ -117,22 +115,26 @@ class FocusScreen extends ConsumerWidget {
                   const SizedBox(height: Space.l),
                   _HeroButton(
                     label: session == null ? 'START FOCUS' : 'RETURN TO SESSION',
-                    onTap: session == null
-                        ? () => startFocus(ref, context, draft)
-                        : () => context.push(Routes.focusRun),
+                    onTap: session == null ? () => startFocus(ref, context, draft) : () => context.push(Routes.focusRun),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: Space.l),
+            _QuickDurations(
+              value: draft.focusMin,
+              onPick: (m) => ref.read(focusDraftProvider.notifier).set(draft.copyWith(focusMin: m)),
+            ),
             const SizedBox(height: Space.xxl),
+            const DailyGoalCard(),
+            const SizedBox(height: Space.l),
+            const FocusRules(),
             if (settings.lastFocusAt != null) ...[
               _LastSession(
                 config: settings.lastFocus,
                 at: settings.lastFocusAt!,
                 now: now,
-                onStart: session == null
-                    ? () => startFocus(ref, context, settings.lastFocus)
-                    : null,
+                onStart: session == null ? () => startFocus(ref, context, settings.lastFocus) : null,
               ),
               const SizedBox(height: Space.xxl),
             ],
@@ -183,6 +185,50 @@ class FocusScreen extends ConsumerWidget {
   }
 }
 
+/// One-tap focus lengths (15 / 25 / 45 / 60 min).
+class _QuickDurations extends StatelessWidget {
+  const _QuickDurations({required this.value, required this.onPick});
+  final int value;
+  final ValueChanged<int> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final m in focusDurations)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Semantics(
+                button: true,
+                selected: value == m,
+                label: '$m minute focus',
+                excludeSemantics: true,
+                child: Material(
+                  color: value == m ? Tokens.sage : Tokens.surface,
+                  shape: const StadiumBorder(),
+                  child: InkWell(
+                    customBorder: const StadiumBorder(),
+                    onTap: () => onPick(m),
+                    child: SizedBox(
+                      height: 44,
+                      child: Center(
+                        child: Text(
+                          '$m min',
+                          style: AppText.body(14, weight: FontWeight.w600, color: value == m ? Tokens.textInverse : Tokens.textPrimary),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _HeroButton extends StatelessWidget {
   const _HeroButton({required this.label, required this.onTap});
   final String label;
@@ -219,12 +265,7 @@ class _HeroButton extends StatelessWidget {
 }
 
 class _LastSession extends StatelessWidget {
-  const _LastSession({
-    required this.config,
-    required this.at,
-    required this.now,
-    required this.onStart,
-  });
+  const _LastSession({required this.config, required this.at, required this.now, required this.onStart});
 
   final FocusConfig config;
   final DateTime at;
@@ -259,15 +300,7 @@ class _LastSession extends StatelessWidget {
 }
 
 class _TimingRow extends StatelessWidget {
-  const _TimingRow({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onPicked,
-    this.step = 1,
-    this.unit = 'min',
-  });
+  const _TimingRow({required this.label, required this.value, required this.min, required this.max, required this.onPicked, this.step = 1, this.unit = 'min'});
 
   final String label;
   final int value;
@@ -282,15 +315,7 @@ class _TimingRow extends StatelessWidget {
     return SettingsRow(
       title: label,
       onTap: () async {
-        final v = await showWheelPicker(
-          context,
-          title: label,
-          min: min,
-          max: max,
-          step: step,
-          value: value,
-          unit: unit,
-        );
+        final v = await showWheelPicker(context, title: label, min: min, max: max, step: step, value: value, unit: unit);
         if (v != null) onPicked(v);
       },
       trailing: Row(
@@ -313,10 +338,7 @@ class _Presets extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final all = [
-      for (final (name, c) in builtInPresets) (name, c, null as String?),
-      for (final p in saved) (p.name, p.config, p.id),
-    ];
+    final all = [for (final (name, c) in builtInPresets) (name, c, null as String?), for (final p in saved) (p.name, p.config, p.id)];
     final matched = all.any((p) => p.$2 == draft);
     void select(FocusConfig c) {
       ref.read(feedbackProvider).selection();
@@ -330,35 +352,18 @@ class _Presets extends ConsumerWidget {
         for (final (name, config, id) in all)
           GestureDetector(
             onLongPress: id == null ? null : () => _confirmDelete(context, ref, id, name),
-            child: PillChip(
-              label: name,
-              filled: config == draft,
-              color: config == draft ? Tokens.sage : null,
-              onTap: () => select(config),
-            ),
+            child: PillChip(label: name, filled: config == draft, color: config == draft ? Tokens.sage : null, onTap: () => select(config)),
           ),
         PillChip(
           label: 'Custom',
           filled: !matched,
           color: !matched ? Tokens.sage : null,
           onTap: () async {
-            final v = await showWheelPicker(
-              context,
-              title: 'Focus length',
-              min: 5,
-              max: 180,
-              step: 5,
-              value: draft.focusMin,
-            );
+            final v = await showWheelPicker(context, title: 'Focus length', min: 5, max: 180, step: 5, value: draft.focusMin);
             if (v != null) select(draft.copyWith(focusMin: v));
           },
         ),
-        if (!matched && saved.length < maxSavedPresets)
-          PillChip(
-            label: 'Save preset',
-            icon: Icons.add_rounded,
-            onTap: () => _save(context, ref),
-          ),
+        if (!matched && saved.length < maxSavedPresets) PillChip(label: 'Save preset', icon: Icons.add_rounded, onTap: () => _save(context, ref)),
       ],
     );
   }
@@ -377,20 +382,13 @@ class _Presets extends ConsumerWidget {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(c, controller.text.trim()),
-            child: const Text('Save'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(c, controller.text.trim()), child: const Text('Save')),
         ],
       ),
     );
     controller.dispose();
     if (name == null || name.isEmpty) return;
-    await ref
-        .read(focusDaoProvider)
-        .upsertPreset(
-          FocusPreset(id: const Uuid().v4(), name: name, config: draft, sort: saved.length),
-        );
+    await ref.read(focusDaoProvider).upsertPreset(FocusPreset(id: const Uuid().v4(), name: name, config: draft, sort: saved.length));
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref, String id, String name) async {
