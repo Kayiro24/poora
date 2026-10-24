@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:poora/core/app_info.dart';
+import 'package:poora/core/platform/permissions_service.dart';
 import 'package:poora/core/providers.dart';
 import 'package:poora/core/theme/tokens.dart';
 import 'package:poora/core/theme/typography.dart';
@@ -8,10 +9,8 @@ import 'package:poora/core/widgets/common.dart';
 import 'package:poora/core/widgets/screen_header.dart';
 import 'package:poora/features/focus/ui/focus_breakdown.dart';
 import 'package:poora/features/settings/app_settings.dart';
+import 'package:poora/features/settings/permissions_list.dart';
 import 'package:poora/features/settings/settings_controller.dart';
-
-/// Whether the Android focus guard (Accessibility service) is on.
-final guardEnabledProvider = FutureProvider<bool>((ref) => ref.read(guardServiceProvider).isEnabled());
 
 /// Pick apps from the phone's launcher list. Two uses:
 /// * **distracting** — minutes in them are reported after focus (Usage access);
@@ -46,7 +45,7 @@ class _DistractingAppsState extends ConsumerState<DistractingAppsScreen> with Wi
     if (state != AppLifecycleState.resumed) return;
     ref
       ..invalidate(usageAccessProvider)
-      ..invalidate(guardEnabledProvider);
+      ..invalidate(specialPermissionsProvider);
   }
 
   List<String> _list(AppSettings s) => widget.blocking ? s.blockedApps : s.distractingApps;
@@ -55,8 +54,13 @@ class _DistractingAppsState extends ConsumerState<DistractingAppsScreen> with Wi
   Widget build(BuildContext context) {
     final blocking = widget.blocking;
     final usage = ref.watch(usageServiceProvider);
-    final guard = ref.watch(guardServiceProvider);
-    final access = blocking ? (ref.watch(guardEnabledProvider).value ?? false) : (ref.watch(usageAccessProvider).value ?? false);
+    final perms = ref.watch(specialPermissionsProvider).value ?? const {};
+    bool on(SpecialPermission p) => perms[p] ?? false;
+    // Blocking works through the focus guard, or through Usage access + the overlay.
+    final access = blocking
+        ? on(SpecialPermission.accessibility) || (on(SpecialPermission.usage) && on(SpecialPermission.overlay))
+        : (ref.watch(usageAccessProvider).value ?? false);
+    final blockFix = on(SpecialPermission.usage) ? SpecialPermission.overlay : SpecialPermission.usage;
     final apps = ref.watch(installedAppsProvider);
     final selected = ref.watch(settingsProvider.select(_list)).toSet();
 
@@ -94,16 +98,16 @@ class _DistractingAppsState extends ConsumerState<DistractingAppsScreen> with Wi
                 title: 'Permission',
                 children: [
                   SettingsRow(
-                    title: blocking ? 'Focus guard' : 'Usage access',
+                    title: blocking ? 'Blocking' : 'Usage access',
                     subtitle: access
                         ? 'On'
                         : blocking
-                        ? 'Off — Settings → Accessibility → Poora focus guard'
+                        ? 'Off — allow ${blockFix.title} (or the Poora focus guard)'
                         : 'Off — only interruptions are counted',
                     trailing: access
                         ? const Icon(Icons.check_circle_rounded, color: Tokens.mint)
                         : TextButton(
-                            onPressed: blocking ? guard.openSettings : usage.requestAccess,
+                            onPressed: blocking ? () => ref.read(permissionsServiceProvider).open(blockFix) : usage.requestAccess,
                             child: Text('Turn on', style: AppText.label.copyWith(color: Tokens.coral)),
                           ),
                   ),

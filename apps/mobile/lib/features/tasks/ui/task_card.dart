@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:poora/core/theme/motion.dart';
@@ -328,19 +330,24 @@ class RailCard extends ConsumerWidget {
             child: LayoutBuilder(
               builder: (context, c) {
                 final tall = c.maxHeight >= 44;
+                // Short tasks (15–25 min) get one centred line, scaled to the card.
+                final short = c.maxHeight < 30;
+                final base = c.maxWidth < 80 ? 13.0 : 16.0;
+                final size = short ? math.max(7, math.min(base, (c.maxHeight - 2) / 1.15)).toDouble() : base;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (!highlight) Container(width: 4, color: color),
                     Expanded(
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(8, tall ? 6 : 2, 6, 2),
+                        padding: EdgeInsets.fromLTRB(8, short ? 0 : (tall ? 6 : 2), 6, short ? 0 : 2),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: short ? MainAxisAlignment.center : MainAxisAlignment.start,
                           children: [
                             StrikeText(
                               o.title.toUpperCase(),
-                              style: AppText.display(c.maxWidth < 80 ? 13 : 16, color: fg),
+                              style: AppText.display(size, color: fg).copyWith(height: 1.15),
                               struck: done,
                             ),
                             if (tall && c.maxWidth >= 80)

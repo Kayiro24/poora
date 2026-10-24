@@ -139,6 +139,12 @@ class GuardChannel(private val context: Context, messenger: BinaryMessenger) {
                         call.argument<Boolean>("strict") ?: false,
                         call.argument<List<String>>("blocked") ?: emptyList(),
                     )
+                    // The service enforces the guard even without Accessibility (Usage access + overlay).
+                    try {
+                        FocusService.start(context)
+                    } catch (_: Exception) {
+                        // Refused from the background; Accessibility (if on) still enforces.
+                    }
                     result.success(null)
                 }
                 "clear" -> {

@@ -18,6 +18,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         UsageChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         GuardChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        FocusBarChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        PermissionsChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger) { this }
         // Fallback after a denied permission: Poora's notification settings.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "poora/system")
             .setMethodCallHandler { call, result ->

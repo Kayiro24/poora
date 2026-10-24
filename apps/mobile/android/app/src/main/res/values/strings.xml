@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Poora</string>
+    <string name="admin_label">Poora uninstall protection</string>
     <string name="focus_guard_label">Poora focus guard</string>
     <string name="focus_guard_description">Only during a focus session you start: keeps you out of the apps you chose to block, and in strict mode stops Poora being uninstalled until focus ends. Poora reads which app is on screen and nothing else; nothing leaves your phone. You versus you.</string>
 </resources>

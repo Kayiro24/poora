@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:poora/app_router.dart';
 import 'package:poora/core/app_info.dart';
+import 'package:poora/core/platform/permissions_service.dart';
 import 'package:poora/core/providers.dart';
 import 'package:poora/core/theme/tokens.dart';
 import 'package:poora/core/theme/typography.dart';
@@ -16,8 +17,8 @@ import 'package:poora/core/widgets/wheel_picker.dart';
 import 'package:poora/features/focus/application/focus_draft.dart';
 import 'package:poora/features/focus/domain/focus_history.dart';
 import 'package:poora/features/focus/domain/focus_session.dart';
-import 'package:poora/features/focus/ui/distracting_apps_screen.dart';
 import 'package:poora/features/focus/ui/focus_breakdown.dart';
+import 'package:poora/features/settings/permissions_list.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 
 bool get _isAndroid => !kIsWeb && Platform.isAndroid;
@@ -101,8 +102,17 @@ class FocusRules extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
-    final guardOn = ref.watch(guardEnabledProvider).value ?? false;
-    final needsGuard = _isAndroid && (s.strictMode || s.blockedApps.isNotEmpty) && !guardOn;
+    final perms = ref.watch(specialPermissionsProvider).value;
+    bool on(SpecialPermission p) => perms?[p] ?? true;
+    // Blocking works through the focus guard, or Usage access + overlay; strict also wants uninstall protection.
+    final canBlock = on(SpecialPermission.accessibility) || (on(SpecialPermission.usage) && on(SpecialPermission.overlay));
+    final missing = !_isAndroid || perms == null
+        ? null
+        : !canBlock && (s.strictMode || s.blockedApps.isNotEmpty)
+        ? (on(SpecialPermission.usage) ? SpecialPermission.overlay : SpecialPermission.usage)
+        : s.strictMode && !on(SpecialPermission.admin)
+        ? SpecialPermission.admin
+        : null;
     return SettingsGroup(
       title: 'Focus rules',
       children: [
@@ -121,13 +131,13 @@ class FocusRules extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
             onTap: () => context.push(Routes.blockedApps),
           ),
-        if (needsGuard)
+        if (missing != null)
           SettingsRow(
-            title: 'Turn on the focus guard',
-            subtitle: 'Needed for blocking apps and uninstall protection: Settings → Accessibility → Poora focus guard',
+            title: 'Turn on: ${missing.title}',
+            subtitle: '${missing.why}. Without it, ${missing == SpecialPermission.admin ? 'Poora can be uninstalled during strict focus' : 'blocked apps still open'}.',
             trailing: TextButton(
-              onPressed: () => ref.read(guardServiceProvider).openSettings(),
-              child: Text('Open', style: AppText.label.copyWith(color: Tokens.coral)),
+              onPressed: () => ref.read(permissionsServiceProvider).open(missing),
+              child: Text('Allow', style: AppText.label.copyWith(color: Tokens.coral)),
             ),
           ),
       ],

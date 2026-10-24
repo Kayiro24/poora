@@ -169,6 +169,24 @@ Rule applied throughout: pick the calmer, simpler option.
   "Poora" — the uninstall dialog, App info, its Accessibility toggle — until focus ends. Without the
   service, strict mode still locks the timer and the UI asks to turn the guard on. Web can't block
   apps or uninstalls; it gets the timer lock only.
+- **Why blocking first failed:** it relied only on the Accessibility service, which nothing asked
+  for — and Android 13+ greys that switch out for APKs installed from a file until "Allow
+  restricted settings" is chosen in App info. Fix, in layers:
+  1. **FocusService** (foreground service, `specialUse`, survives the UI being closed and reboots):
+     during an armed focus phase it reads the foreground app from usage events every 0.6 s and
+     covers blocked apps — and in strict mode the package installer and Settings — with the block
+     screen. Needs Usage access + Display over other apps (to start the block screen from the
+     background).
+  2. The **Accessibility focus guard** stays as the instant path (backs out and goes home).
+  3. **Device admin** ("Uninstall protection"): Android won't uninstall an active admin; turning it
+     off needs Settings, which strict mode blocks. Swiping Poora away during strict focus relaunches it.
+  All special permissions are listed on a first-launch step (ALLOW walks through them; each is
+  switched on by the user on its system screen) and in Settings → Permissions.
+- **Focus bar:** an ongoing low-importance notification from FocusService with just two numbers —
+  today's and this week's total focus; while focusing, the session ("Focusing · ends 10:45", or
+  "Strict focus") with a live countdown, plus today and the week. The app
+  pushes finished minutes per day; the service adds live time itself, so it's right with Poora
+  closed. Toggle: Settings → Focus bar. Android only.
 - **Daily focus goal** (default 120 min, editable): Focus shows today against it; history shows
   goal days this week and the streak. Today only extends the streak once reached, never breaks it.
 - **"You versus you."** (`AppInfo.motto`): no leaderboards, groups or comparisons anywhere.

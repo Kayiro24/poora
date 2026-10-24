@@ -28,6 +28,8 @@ Future<void> showTaskEditor(
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the shell's floating nav bar, so nothing at the bottom is hidden.
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: false,

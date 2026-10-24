@@ -10,8 +10,10 @@ import 'package:poora/core/providers.dart';
 import 'package:poora/core/theme/theme.dart';
 import 'package:poora/core/theme/tokens.dart';
 import 'package:poora/core/time/date_utils.dart';
+import 'package:poora/features/focus/application/focus_bar.dart';
 import 'package:poora/features/focus/application/focus_controller.dart';
 import 'package:poora/features/focus/ui/recovery_dialog.dart';
+import 'package:poora/features/settings/permissions_list.dart';
 import 'package:poora/features/tasks/application/tasks_providers.dart';
 
 class PooraApp extends ConsumerStatefulWidget {
@@ -31,6 +33,12 @@ class _PooraAppState extends ConsumerState<PooraApp>
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     ref.read(notificationServiceProvider).onAction = _onNotificationAction;
+    // Android focus bar: today's focus and the week, kept in the notification shade.
+    ref.listenManual(
+      focusBarDataProvider,
+      (_, d) => unawaited(ref.read(focusBarServiceProvider).update(d)),
+      fireImmediately: true,
+    );
     // Interrupted focus sessions are checked when the splash finishes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(ref.read(reminderSchedulerProvider).reschedule());
@@ -52,6 +60,7 @@ class _PooraAppState extends ConsumerState<PooraApp>
     switch (state) {
       case AppLifecycleState.resumed:
         ref.read(todayProvider.notifier).refresh();
+        ref.invalidate(specialPermissionsProvider);
         unawaited(focus.onForeground());
         unawaited(ref.read(reminderSchedulerProvider).reschedule());
       case AppLifecycleState.paused:

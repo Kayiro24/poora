@@ -37,6 +37,7 @@ class AppSettings {
     this.strictMode = false,
     this.dailyFocusGoalMin = 120,
     this.blockedApps = const [],
+    this.focusBar = true,
   });
 
   final String name;
@@ -78,6 +79,9 @@ class AppSettings {
   /// Android packages that can't be opened during focus (focus guard).
   final List<String> blockedApps;
 
+  /// Android: the always-on notification with today's focus and the week.
+  final bool focusBar;
+
   AppSettings copyWith({
     String? name,
     bool? mondayFirst,
@@ -100,6 +104,7 @@ class AppSettings {
     bool? strictMode,
     int? dailyFocusGoalMin,
     List<String>? blockedApps,
+    bool? focusBar,
   }) => AppSettings(
     name: name ?? this.name,
     mondayFirst: mondayFirst ?? this.mondayFirst,
@@ -124,6 +129,7 @@ class AppSettings {
     strictMode: strictMode ?? this.strictMode,
     dailyFocusGoalMin: dailyFocusGoalMin ?? this.dailyFocusGoalMin,
     blockedApps: blockedApps ?? this.blockedApps,
+    focusBar: focusBar ?? this.focusBar,
   );
 
   Map<String, String> toMap() => {
@@ -148,6 +154,7 @@ class AppSettings {
     'strictMode': '$strictMode',
     'dailyFocusGoalMin': '$dailyFocusGoalMin',
     'blockedApps': blockedApps.join(','),
+    'focusBar': '$focusBar',
   };
 
   factory AppSettings.fromMap(Map<String, String> m) {
@@ -187,6 +194,7 @@ class AppSettings {
       strictMode: b('strictMode', d.strictMode),
       dailyFocusGoalMin: int.tryParse(m['dailyFocusGoalMin'] ?? '') ?? d.dailyFocusGoalMin,
       blockedApps: (m['blockedApps'] ?? '').split(',').where((p) => p.isNotEmpty).toList(),
+      focusBar: b('focusBar', d.focusBar),
     );
   }
 }

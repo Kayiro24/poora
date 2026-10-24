@@ -15,6 +15,7 @@ import 'package:poora/core/widgets/accent_panel.dart';
 import 'package:poora/core/widgets/completion_ring.dart';
 import 'package:poora/core/widgets/mascot.dart';
 import 'package:poora/core/widgets/poora_logo.dart';
+import 'package:poora/features/settings/permissions_list.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 
 /// First-run welcome: what the name means, the two halves of the app, and a
@@ -30,7 +31,11 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with WidgetsBindi
   final _pages = PageController();
   final _name = TextEditingController();
   int _page = 0;
-  static const _count = 5;
+  /// Android adds a step for the focus permissions (blocking, strict mode, focus bar).
+  int get _count => _isAndroid ? 6 : 5;
+
+  /// The focus-permissions step (Android only), right after notifications.
+  static const _permsPage = 4;
 
   /// The notifications step — Skip lands here, never past it.
   static const _notifPage = 3;
@@ -123,6 +128,8 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with WidgetsBindi
   @override
   Widget build(BuildContext context) {
     final last = _page == _count - 1;
+    // On the permissions step, ALLOW opens the next permission still off.
+    final missing = _isAndroid && _page == _permsPage ? nextMissing(ref.watch(specialPermissionsProvider).value) : null;
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: SafeArea(
@@ -171,6 +178,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with WidgetsBindi
                     onOpenSettings: () => ref.read(notificationServiceProvider).openSystemSettings(),
                     onAllowExact: () => ref.read(notificationServiceProvider).requestExact(),
                   ),
+                  if (_isAndroid) const _FocusPermissionsPage(),
                   _NamePage(controller: _name, onSubmit: _finish),
                 ],
               ),
@@ -192,10 +200,18 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with WidgetsBindi
                     TextButton(onPressed: _declineNotifications, child: const Text('Not now')),
                     const SizedBox(width: 4),
                   ],
+                  if (missing != null) ...[
+                    TextButton(onPressed: _next, child: const Text('Later')),
+                    const SizedBox(width: 4),
+                  ],
                   SizedBox(
                     height: 56,
                     child: FilledButton(
-                      onPressed: _page == _notifPage && _notifGranted == null ? _askNotifications : _next,
+                      onPressed: _page == _notifPage && _notifGranted == null
+                          ? _askNotifications
+                          : missing != null
+                          ? () => ref.read(permissionsServiceProvider).open(missing)
+                          : _next,
                       style: FilledButton.styleFrom(
                         backgroundColor: Tokens.coral,
                         foregroundColor: Tokens.textInverse,
@@ -203,7 +219,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> with WidgetsBindi
                         shape: const StadiumBorder(),
                       ),
                       child: Text(
-                        last ? 'GET STARTED' : (_page == _notifPage && _notifGranted == null ? 'ALLOW' : 'NEXT'),
+                        last ? 'GET STARTED' : (_page == _notifPage && _notifGranted == null) || missing != null ? 'ALLOW' : 'NEXT',
                         style: AppText.display(20, color: Tokens.textInverse),
                       ),
                     ),
@@ -330,6 +346,30 @@ class _NamePage extends StatelessWidget {
             hintStyle: AppText.display(28, color: Tokens.textSecondary),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Step 5 (Android): every permission focus needs, asked up front. Each one is
+/// switched on by the user on its system screen; ALLOW walks through them.
+class _FocusPermissionsPage extends StatelessWidget {
+  const _FocusPermissionsPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(Space.side, Space.xl, Space.side, Space.xl),
+      children: [
+        Text('MAKE FOCUS STICK.', style: AppText.h1),
+        const SizedBox(height: Space.m),
+        Text(
+          'To block apps, keep strict focus strict and show today’s focus in your notification bar, Poora needs a few '
+          'Android permissions. Tap ALLOW and switch each one on — you can also do it later in Settings → Permissions.',
+          style: AppText.body(15, color: Tokens.textSecondary, height: 1.5),
+        ),
+        const SizedBox(height: Space.l),
+        const PermissionsList(),
       ],
     );
   }

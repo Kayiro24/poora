@@ -14,10 +14,10 @@ import 'package:poora/core/theme/typography.dart';
 import 'package:poora/core/widgets/common.dart';
 import 'package:poora/core/widgets/poora_logo.dart';
 import 'package:poora/core/widgets/screen_header.dart';
-import 'package:poora/features/focus/ui/distracting_apps_screen.dart';
 import 'package:poora/features/settings/app_settings.dart';
 import 'package:poora/features/settings/data_reset.dart';
 import 'package:poora/features/settings/data_transfer.dart';
+import 'package:poora/features/settings/permissions_list.dart';
 import 'package:poora/features/settings/settings_controller.dart';
 import 'package:poora/features/tasks/ui/task_editor.dart';
 import 'package:share_plus/share_plus.dart';
@@ -55,8 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     if (state != AppLifecycleState.resumed) return;
     ref
       ..invalidate(notificationsEnabledProvider)
-      ..invalidate(exactAlarmProvider)
-      ..invalidate(guardEnabledProvider);
+      ..invalidate(exactAlarmProvider);
   }
 
   Future<void> _update(AppSettings Function(AppSettings) f) =>
@@ -140,7 +139,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     final exact = ref.watch(exactAlarmProvider).value;
     final isAndroid = !kIsWeb && Platform.isAndroid;
     final distracting = s.distractingApps.length;
-    final guardOn = ref.watch(guardEnabledProvider).value;
 
     return Scaffold(
       body: SafeArea(
@@ -264,17 +262,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                     trailing: const Icon(Icons.chevron_right_rounded, color: Tokens.textSecondary),
                     onTap: () => context.push(Routes.blockedApps),
                   ),
-                  SettingsRow(
-                    title: 'Focus guard',
-                    subtitle: guardOn == true
-                        ? 'On — blocks apps and protects strict focus'
-                        : 'Off — Settings → Accessibility → Poora focus guard',
-                    trailing: guardOn == true
-                        ? const Icon(Icons.check_circle_rounded, color: Tokens.mint)
-                        : TextButton(
-                            onPressed: () => ref.read(guardServiceProvider).openSettings(),
-                            child: Text('Turn on', style: AppText.label.copyWith(color: Tokens.coral)),
-                          ),
+                  SwitchRow(
+                    title: 'Focus bar',
+                    subtitle: 'Today’s and this week’s focus in the notification bar — or the session while you focus',
+                    value: s.focusBar,
+                    onChanged: (v) => _update((x) => x.copyWith(focusBar: v)),
                   ),
                 ],
                 if (isAndroid)
@@ -286,6 +278,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   ),
               ],
             ),
+            if (isAndroid) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: Space.s),
+                child: Text('PERMISSIONS', style: AppText.body(12, weight: FontWeight.w500, color: Tokens.textSecondary)),
+              ),
+              const PermissionsList(),
+              const SizedBox(height: Space.xxl),
+            ],
             SettingsGroup(
               title: 'Data',
               children: [

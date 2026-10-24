@@ -52,7 +52,7 @@ class BlockedActivity : Activity() {
         root.addView(text(if (strict) "STRICT FOCUS" else "BLOCKED DURING FOCUS", 24f, SAGE, bold = true))
         root.addView(
             text(
-                if (strict) "Poora can't be removed or changed until your focus ends at $time."
+                if (strict) "Settings and uninstalling are locked until your focus ends at $time."
                 else "${label ?: "This app"} is blocked until your focus ends at $time.",
                 17f,
                 TEXT,
@@ -83,6 +83,13 @@ class BlockedActivity : Activity() {
             },
         )
         setContentView(root)
+    }
+
+    // Back never returns to the blocked app: go to the home screen instead.
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        finish()
     }
 
     companion object {
